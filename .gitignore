@@ -1,0 +1,8 @@
+bin/
+.vscode/
+data/
+lib/
+lib64
+share/
+test/
+pyvenv.cfg
