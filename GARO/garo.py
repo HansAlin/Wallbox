@@ -1,0 +1,85 @@
+from selenium import webdriver
+from selenium.webdriver.support.ui import Select
+from selenium.webdriver.common.by import By
+import time
+import requests
+
+def on_off_Garo(value):
+	"""
+	This function takes the argument value and sets 
+	the Garo Charger to: "1" = on, "0" = off, "2" = Schedule
+	"""	
+	# For raspberry pi 
+	# r'/usr/bin/chromedriver'
+
+	options =  webdriver.ChromeOptions()
+	options.add_argument('--headless')
+	options.add_argument('--log-level=OFF')
+	options.add_argument('--disable-infobars')
+	options.add_argument('--disable-gpu')
+	options.add_experimental_option('excludeSwitches', ['disable-logging'])
+
+	try:
+		# For raspberry pi /usr/bin/chromedriver
+		#driver = webdriver.Chrome(r'/usr/bin/chromedriver', options=options)
+		driver = webdriver.Chrome(options=options)
+		
+		driver.get("http://192.168.1.81:8080/serialweb/")
+		time.sleep(20)
+
+		x = driver.find_element(by=By.ID, value="controlmode")
+		drop = Select(x)
+		drop.select_by_value(value)
+		driver.close()
+		driver.quit()
+		return True
+	except:
+		print('No connection to GARO:', end=" ")
+		return False
+
+def get_Garo_status():
+	"""
+	This function check if car is connected to GARO
+	Return: 
+	connection : connection type
+	available : if available
+
+
+	"""
+	try:
+		url = 'http://192.168.1.81:8080/servlet/rest/chargebox/status?_=1'
+		response = requests.get(url=url)
+		data = response.json()
+
+
+		if data['mode'] == "ALWAYS_OFF":
+			available = 0
+		elif data['mode'] == "ALWAYS_ON":
+			available = 1
+		elif data['mode'] == "SCHEMA":
+			available = 2
+		else:
+			print("Error reading values from GARO wallbox!")
+			available = None
+
+		if data['connector'] == "NOT_CONNECTED":
+			connection = 0
+		# TODO might need to implement something that takes care of long periods of 'CHARGING_PAUSED'
+		# All theses statements gives that the car is connected in some way!  
+		elif data['connector'] == "CONNECTED" or data['connector'] == "DISABLED" or data['connector'] == 'CHARGING_PAUSED':
+			connection = 1
+		elif data['connector'] == "CHARGING"  :
+			connection = 2
+		elif data['connector'] == 'CHARGING_FINISHED':
+			connection = 3
+		else:
+			print("Error reading values from GARO wallbox!")
+			connection = None
+
+
+		return connection, available
+
+	except:
+		print("No available to contact wallbox!", end=" ")
+		return None, None
+  

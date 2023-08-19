@@ -1,18 +1,22 @@
 
 from selenium import webdriver
-from selenium.webdriver.support.ui import Select
-from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.options import Options
+# from selenium.webdriver.support.ui import Select
+# from selenium.webdriver.common.by import By
+# from selenium.webdriver.chrome.options import Options
 import time
 from nordpool import elspot, elbas
 from pprint import pprint
 import pandas as pd
-from leafpy import Leaf
+# from leafpy import Leaf
 import requests
 import datetime
 import pytz
 import pickle
 from bs4 import BeautifulSoup
+from GARO.garo import get_Garo_status, on_off_Garo
+from LEAF.leaf import leaf_status
+from NordPool.nordPool import getDataNordPool
+from CHARGE.charge import get_chargeSchedule, ifCharge, changeChargeStatusGaro, get_button_state, get_now, lowTemp, creta_data_file
 
 print()
 """
@@ -35,367 +39,367 @@ Leafpy: Current url in auth.py is url = "https://gdcportalgw.its-mo.com/api_v210
 
 
 ### Turn on of charger ######
-def on_off_Garo(value):
-	"""
-	This function takes the argument value and sets 
-	the Garo Charger to: "1" = on, "0" = off, "2" = Schedule
-	"""	
-	# For raspberry pi 
-	# r'/usr/bin/chromedriver'
+# def on_off_Garo(value):
+# 	"""
+# 	This function takes the argument value and sets 
+# 	the Garo Charger to: "1" = on, "0" = off, "2" = Schedule
+# 	"""	
+# 	# For raspberry pi 
+# 	# r'/usr/bin/chromedriver'
 
-	options =  webdriver.ChromeOptions()
-	options.add_argument('--headless')
-	options.add_argument('--log-level=OFF')
-	options.add_argument('--disable-infobars')
-	options.add_argument('--disable-gpu')
-	options.add_experimental_option('excludeSwitches', ['disable-logging'])
+# 	options =  webdriver.ChromeOptions()
+# 	options.add_argument('--headless')
+# 	options.add_argument('--log-level=OFF')
+# 	options.add_argument('--disable-infobars')
+# 	options.add_argument('--disable-gpu')
+# 	options.add_experimental_option('excludeSwitches', ['disable-logging'])
 
-	try:
-		# For raspberry pi /usr/bin/chromedriver
-		#driver = webdriver.Chrome(r'/usr/bin/chromedriver', options=options)
-		driver = webdriver.Chrome(options=options)
+# 	try:
+# 		# For raspberry pi /usr/bin/chromedriver
+# 		#driver = webdriver.Chrome(r'/usr/bin/chromedriver', options=options)
+# 		driver = webdriver.Chrome(options=options)
 		
-		driver.get("http://192.168.1.81:8080/serialweb/")
-		time.sleep(20)
+# 		driver.get("http://192.168.1.81:8080/serialweb/")
+# 		time.sleep(20)
 
-		x = driver.find_element(by=By.ID, value="controlmode")
-		drop = Select(x)
-		drop.select_by_value(value)
-		driver.close()
-		driver.quit()
-		return True
-	except:
-		print('No connection to GARO:', end=" ")
-		return False
+# 		x = driver.find_element(by=By.ID, value="controlmode")
+# 		drop = Select(x)
+# 		drop.select_by_value(value)
+# 		driver.close()
+# 		driver.quit()
+# 		return True
+# 	except:
+# 		print('No connection to GARO:', end=" ")
+# 		return False
 
-def get_Garo_status():
-	"""
-	This function check if car is connected to GARO
-	Return: 
-	connection : connection type
-	available : if available
-
-
-	"""
-	try:
-		url = 'http://192.168.1.81:8080/servlet/rest/chargebox/status?_=1'
-		response = requests.get(url=url)
-		data = response.json()
+# def get_Garo_status():
+# 	"""
+# 	This function check if car is connected to GARO
+# 	Return: 
+# 	connection : connection type
+# 	available : if available
 
 
-		if data['mode'] == "ALWAYS_OFF":
-			available = 0
-		elif data['mode'] == "ALWAYS_ON":
-			available = 1
-		elif data['mode'] == "SCHEMA":
-			available = 2
-		else:
-			print("Error reading values from GARO wallbox!")
-			available = None
-
-		if data['connector'] == "NOT_CONNECTED":
-			connection = 0
-		# TODO might need to implement something that takes care of long periods of 'CHARGING_PAUSED'
-		# All theses statements gives that the car is connected in some way!  
-		elif data['connector'] == "CONNECTED" or data['connector'] == "DISABLED" or data['connector'] == 'CHARGING_PAUSED':
-			connection = 1
-		elif data['connector'] == "CHARGING"  :
-			connection = 2
-		elif data['connector'] == 'CHARGING_FINISHED':
-			connection = 3
-		else:
-			print("Error reading values from GARO wallbox!")
-			connection = None
+# 	"""
+# 	try:
+# 		url = 'http://192.168.1.81:8080/servlet/rest/chargebox/status?_=1'
+# 		response = requests.get(url=url)
+# 		data = response.json()
 
 
-		return connection, available
+# 		if data['mode'] == "ALWAYS_OFF":
+# 			available = 0
+# 		elif data['mode'] == "ALWAYS_ON":
+# 			available = 1
+# 		elif data['mode'] == "SCHEMA":
+# 			available = 2
+# 		else:
+# 			print("Error reading values from GARO wallbox!")
+# 			available = None
 
-	except:
-		print("No available to contact wallbox!", end=" ")
-		return None, None
+# 		if data['connector'] == "NOT_CONNECTED":
+# 			connection = 0
+# 		# TODO might need to implement something that takes care of long periods of 'CHARGING_PAUSED'
+# 		# All theses statements gives that the car is connected in some way!  
+# 		elif data['connector'] == "CONNECTED" or data['connector'] == "DISABLED" or data['connector'] == 'CHARGING_PAUSED':
+# 			connection = 1
+# 		elif data['connector'] == "CHARGING"  :
+# 			connection = 2
+# 		elif data['connector'] == 'CHARGING_FINISHED':
+# 			connection = 3
+# 		else:
+# 			print("Error reading values from GARO wallbox!")
+# 			connection = None
+
+
+# 		return connection, available
+
+# 	except:
+# 		print("No available to contact wallbox!", end=" ")
+# 		return None, None
   
 ## Get data from NordPool #####
-def getDataNordPool(utc_offset, now, prev_data):
+# def getDataNordPool(utc_offset, now, prev_data):
 
-	print(f"Downloaded data from Nordpool at: {now}", end=" ")
-	"""
-	"""
-	# TODO remove redundant code and eliminate repeated code!
-	try:
-		if prev_data.empty:
-			prices_bas = elbas.Prices()
+# 	print(f"Downloaded data from Nordpool at: {now}", end=" ")
+# 	"""
+# 	"""
+# 	# TODO remove redundant code and eliminate repeated code!
+# 	try:
+# 		if prev_data.empty:
+# 			prices_bas = elbas.Prices()
 			
-			end_date = datetime.datetime(year=now.year, month=now.month, day=now.day, hour=14)
-			prices = prices_bas.hourly(end_date=end_date, areas=['SE3'])
-			last = prices['areas']['SE3']['Last']
-			pprint(last)
-			timestamp = []
-			price = []
-			for element in last:
-				timestamp.append(element['start'] + datetime.timedelta(hours=utc_offset))
-				price.append(element['value'])
-			df = pd.DataFrame({'TimeStamp':timestamp, 'value':price}) 
-			df['TimeStamp'] = pd.to_datetime(df['TimeStamp']).dt.tz_localize(None)
+# 			end_date = datetime.datetime(year=now.year, month=now.month, day=now.day, hour=14)
+# 			prices = prices_bas.hourly(end_date=end_date, areas=['SE3'])
+# 			last = prices['areas']['SE3']['Last']
+# 			pprint(last)
+# 			timestamp = []
+# 			price = []
+# 			for element in last:
+# 				timestamp.append(element['start'] + datetime.timedelta(hours=utc_offset))
+# 				price.append(element['value'])
+# 			df = pd.DataFrame({'TimeStamp':timestamp, 'value':price}) 
+# 			df['TimeStamp'] = pd.to_datetime(df['TimeStamp']).dt.tz_localize(None)
 
-			with open('data/log_nordpool.pkl', 'wb') as f:
-				pickle.dump(df,f)
+# 			with open('data/log_nordpool.pkl', 'wb') as f:
+# 				pickle.dump(df,f)
 			
-			return df
+# 			return df
 
 
-		else:
-			prices_spot = elspot.Prices()
+# 		else:
+# 			prices_spot = elspot.Prices()
 
-			prices = prices_spot.hourly(areas=['SE3'])
-			pprint(prices)
-			timestamp = []
-			price = []
-			values = prices['areas']['SE3']['values']
-			for element in values:
-					timestamp.append(element['start'] + datetime.timedelta(hours=utc_offset))
-					price.append(element['value'])
-			new_data = pd.DataFrame({'TimeStamp':timestamp, 'value':price})
+# 			prices = prices_spot.hourly(areas=['SE3'])
+# 			pprint(prices)
+# 			timestamp = []
+# 			price = []
+# 			values = prices['areas']['SE3']['values']
+# 			for element in values:
+# 					timestamp.append(element['start'] + datetime.timedelta(hours=utc_offset))
+# 					price.append(element['value'])
+# 			new_data = pd.DataFrame({'TimeStamp':timestamp, 'value':price})
 		
-			new_data['TimeStamp'] = pd.to_datetime(new_data['TimeStamp']).dt.tz_localize(None)
+# 			new_data['TimeStamp'] = pd.to_datetime(new_data['TimeStamp']).dt.tz_localize(None)
 
-			first_time_stamp = new_data['TimeStamp'].iloc[0]
-			value = new_data['value'].iloc[0]
+# 			first_time_stamp = new_data['TimeStamp'].iloc[0]
+# 			value = new_data['value'].iloc[0]
 	
-			prev_data['TimeStamp'] = pd.to_datetime(prev_data['TimeStamp'])
-			last_time_stamp = prev_data['TimeStamp'].iloc[-1]
-			t = type(value)
-			if value < 100000:		# Sometimes the returned values from Nordpool have inf values
-				last_day = last_time_stamp.day
-				one_day = datetime.timedelta(hours=24)
-				first_day = first_time_stamp.day
+# 			prev_data['TimeStamp'] = pd.to_datetime(prev_data['TimeStamp'])
+# 			last_time_stamp = prev_data['TimeStamp'].iloc[-1]
+# 			t = type(value)
+# 			if value < 100000:		# Sometimes the returned values from Nordpool have inf values
+# 				last_day = last_time_stamp.day
+# 				one_day = datetime.timedelta(hours=24)
+# 				first_day = first_time_stamp.day
 				
-				#if last_time_stamp.day + datetime.timedelta(hours=24) == first_time_stamp.day:
-				if last_day + 1 == first_day:
-					with open('data/log_nordpool.pkl', 'rb') as f:
-						log_nordpool = pickle.load(f)
-					concat_df = pd.concat([prev_data, new_data], axis=0, ignore_index=True)
-					log_nordpool = pd.concat([log_nordpool, new_data], axis=0, ignore_index=True)
+# 				#if last_time_stamp.day + datetime.timedelta(hours=24) == first_time_stamp.day:
+# 				if last_day + 1 == first_day:
+# 					with open('data/log_nordpool.pkl', 'rb') as f:
+# 						log_nordpool = pickle.load(f)
+# 					concat_df = pd.concat([prev_data, new_data], axis=0, ignore_index=True)
+# 					log_nordpool = pd.concat([log_nordpool, new_data], axis=0, ignore_index=True)
 
-					concat_df = concat_df.reset_index(drop=True)
-					log_nordpool = log_nordpool.reset_index(drop=True)
-					concat_df = concat_df.iloc[-96:,]
+# 					concat_df = concat_df.reset_index(drop=True)
+# 					log_nordpool = log_nordpool.reset_index(drop=True)
+# 					concat_df = concat_df.iloc[-96:,]
 	
-					with open('data/log_nordpool.pkl', 'wb') as f:
-						pickle.dump(log_nordpool,f)
-					log_nordpool.to_csv('data/log_nordpool.csv')
+# 					with open('data/log_nordpool.pkl', 'wb') as f:
+# 						pickle.dump(log_nordpool,f)
+# 					log_nordpool.to_csv('data/log_nordpool.csv')
 					
-					return concat_df
-				else:
-					# If not the new data is aligned with the old data
-					# Try to compacted the code!
-					prices_bas = elbas.Prices()
+# 					return concat_df
+# 				else:
+# 					# If not the new data is aligned with the old data
+# 					# Try to compacted the code!
+# 					prices_bas = elbas.Prices()
 					
-					end_date = datetime.datetime(year=now.year, month=now.month, day=now.day, hour=14)
-					prices = prices_bas.hourly(end_date=end_date, areas=['SE3'])
-					last = prices['areas']['SE3']['Last']
-					pprint(last)
-					timestamp = []
-					price = []
-					for element in last:
-						timestamp.append(element['start'] + datetime.timedelta(hours=utc_offset))
-						price.append(element['value'])
-					df = pd.DataFrame({'TimeStamp':timestamp, 'value':price}) 
-					df['TimeStamp'] = pd.to_datetime(df['TimeStamp']).dt.tz_localize(None)
+# 					end_date = datetime.datetime(year=now.year, month=now.month, day=now.day, hour=14)
+# 					prices = prices_bas.hourly(end_date=end_date, areas=['SE3'])
+# 					last = prices['areas']['SE3']['Last']
+# 					pprint(last)
+# 					timestamp = []
+# 					price = []
+# 					for element in last:
+# 						timestamp.append(element['start'] + datetime.timedelta(hours=utc_offset))
+# 						price.append(element['value'])
+# 					df = pd.DataFrame({'TimeStamp':timestamp, 'value':price}) 
+# 					df['TimeStamp'] = pd.to_datetime(df['TimeStamp']).dt.tz_localize(None)
 
-					with open('data/log_nordpool.pkl', 'wb') as f:
-						pickle.dump(df,f)
+# 					with open('data/log_nordpool.pkl', 'wb') as f:
+# 						pickle.dump(df,f)
 					
-					return df
+# 					return df
 					
 
-			return prev_data
-	except:
-		print("Could not get data from Nordpool:")	
-		return prev_data
+# 			return prev_data
+# 	except:
+# 		print("Could not get data from Nordpool:")	
+# 		return prev_data
 
 
-def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern):
-	"""
-	This function creates a charging schedule based on data from nordpool (nordpool_data)
-	Arguments:
-		hour_to_charge: hours for setting schedule
-		nordpool_data: data from nordpool
-		now: current time
-		pattern: which type of charging pattern available, 'auto', 'fast_smart', 'now'
-	Returns:
-		schedule
-		remaining_hours: if not all charging hours are fitted in the first schedule
+# def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern):
+# 	"""
+# 	This function creates a charging schedule based on data from nordpool (nordpool_data)
+# 	Arguments:
+# 		hour_to_charge: hours for setting schedule
+# 		nordpool_data: data from nordpool
+# 		now: current time
+# 		pattern: which type of charging pattern available, 'auto', 'fast_smart', 'now'
+# 	Returns:
+# 		schedule
+# 		remaining_hours: if not all charging hours are fitted in the first schedule
 
-	"""
-	remaining_hours = 0
-
-
-
-	print(f"Getting charging schedule at: {now}", end=" ")
-
-	nordpool_data['TimeStamp'] = pd.to_datetime(nordpool_data['TimeStamp']).dt.tz_localize(None)
-	df_sub = nordpool_data[nordpool_data['TimeStamp'] >= datetime.datetime(year=now.year, month=now.month, day=now.day, hour=now.hour)] 
-
-	fast_charge_limit = 12
-	if pattern == 'fast_smart':
-		if hour_to_charged > fast_charge_limit:
-			stop_charge = now + datetime.timedelta(hours=hour_to_charged)
-			charge_schedule = df_sub[df_sub['TimeStamp'] < stop_charge]
-		else:
-			df_sub = df_sub[df_sub['TimeStamp'] < now + datetime.timedelta(hours=fast_charge_limit)]
-			charge_schedule = df_sub.nsmallest(hour_to_charged, 'value')
-			charge_schedule['TimeStamp'] = pd.to_datetime(charge_schedule['TimeStamp'])
-			charge_schedule = charge_schedule.sort_values(by='TimeStamp')
-
-	elif pattern == 'auto':
-		if hour_to_charged > 10:
-			remaining_hours = (hour_to_charged - 10)
-			hour_to_charged = 10
-		#TODO an algorithm that change the number of remaining hours based
-		# on previous price from nordpool
-		charge_schedule = df_sub.nsmallest(hour_to_charged, 'value')
-		charge_schedule['TimeStamp'] = pd.to_datetime(charge_schedule['TimeStamp'])
-		charge_schedule = charge_schedule.sort_values(by='TimeStamp')
-
-	elif pattern == 'on':
-		#TODO implement
-		print("Charge now", end=" ")
+# 	"""
+# 	remaining_hours = 0
 
 
-	print(f"Charging schedule {charge_schedule['TimeStamp']}", end=" ")
 
-	print(f'With remaining hours {remaining_hours}', end=" ")
-	with  open('data/schedule_log.csv', 'a') as f:
-		f.write(str({'TimeStamp':now,'schedule':charge_schedule['TimeStamp']} ))
-	return pd.DataFrame(charge_schedule['TimeStamp']), remaining_hours
+# 	print(f"Getting charging schedule at: {now}", end=" ")
 
-def ifCharge(charge_schedule, now):
-	charge_schedule = pd.DataFrame(charge_schedule)
+# 	nordpool_data['TimeStamp'] = pd.to_datetime(nordpool_data['TimeStamp']).dt.tz_localize(None)
+# 	df_sub = nordpool_data[nordpool_data['TimeStamp'] >= datetime.datetime(year=now.year, month=now.month, day=now.day, hour=now.hour)] 
 
-	for row in charge_schedule['TimeStamp']:
+# 	fast_charge_limit = 12
+# 	if pattern == 'fast_smart':
+# 		if hour_to_charged > fast_charge_limit:
+# 			stop_charge = now + datetime.timedelta(hours=hour_to_charged)
+# 			charge_schedule = df_sub[df_sub['TimeStamp'] < stop_charge]
+# 		else:
+# 			df_sub = df_sub[df_sub['TimeStamp'] < now + datetime.timedelta(hours=fast_charge_limit)]
+# 			charge_schedule = df_sub.nsmallest(hour_to_charged, 'value')
+# 			charge_schedule['TimeStamp'] = pd.to_datetime(charge_schedule['TimeStamp'])
+# 			charge_schedule = charge_schedule.sort_values(by='TimeStamp')
 
-		t_stamp = row
-		if datetime.timedelta(hours=0) <= (now - t_stamp) < datetime.timedelta(hours=1):
-			return True
+# 	elif pattern == 'auto':
+# 		if hour_to_charged > 10:
+# 			remaining_hours = (hour_to_charged - 10)
+# 			hour_to_charged = 10
+# 		#TODO an algorithm that change the number of remaining hours based
+# 		# on previous price from nordpool
+# 		charge_schedule = df_sub.nsmallest(hour_to_charged, 'value')
+# 		charge_schedule['TimeStamp'] = pd.to_datetime(charge_schedule['TimeStamp'])
+# 		charge_schedule = charge_schedule.sort_values(by='TimeStamp')
 
-	return False
-
-def leaf_status():
-	try:
-		leaf = Leaf(username='hansalin@gmail.com', password='L@ngdrag00', region_code='NE')
-		r = leaf.BatteryStatusRecordsRequest()
-	except:
-		return -1
-	soc = int(r['BatteryStatusRecords']['BatteryStatus']['SOC']['Value'])
-	if soc == 100:
-		return 0
-	# TODO fix this
-	charging_hours = int(r['BatteryStatusRecords']['TimeRequiredToFull200']['HourRequiredToFull'])
-
-	if charging_hours != 0:
-		charging_hours = charging_hours + 1
-	pprint(r)
-	# TODO This might be needed to uncomment
-	# leaf.BatteryRemoteChargingRequest()
-	print(f"Charging hours: {charging_hours}", end=" ")
-	return charging_hours
-
-def changeChargeStatusGaro(charging, charge, now, available):
-	if charging and not available:
-		charging = False
-
-	if charging == True and charge == False:
-		turn_on_value = "0"
-		charging = False
+# 	elif pattern == 'on':
+# 		#TODO implement
+# 		print("Charge now", end=" ")
 
 
-		response = on_off_Garo(turn_on_value)
-		if not response:
-			charging = True
-			print("Status not changed at GARO!", end=" ")
-		else:
-			print(f"Garo turned off at: {now}", end=" ")
+# 	print(f"Charging schedule {charge_schedule['TimeStamp']}", end=" ")
 
-	if charging == False and charge  == True:
-		turn_on_value = "1"
-		charging = True
+# 	print(f'With remaining hours {remaining_hours}', end=" ")
+# 	with  open('data/schedule_log.csv', 'a') as f:
+# 		f.write(str({'TimeStamp':now,'schedule':charge_schedule['TimeStamp']} ))
+# 	return pd.DataFrame(charge_schedule['TimeStamp']), remaining_hours
 
-		response = on_off_Garo(turn_on_value)
-		if not response:
-			charging = False
-			print("Status not changed at GARO!", end=" ")
-		else:
-			print(f"Garo turned on at: {now}", end=" ")
+# def ifCharge(charge_schedule, now):
+# 	charge_schedule = pd.DataFrame(charge_schedule)
 
-	return charging
+# 	for row in charge_schedule['TimeStamp']:
 
-def get_button_state():
+# 		t_stamp = row
+# 		if datetime.timedelta(hours=0) <= (now - t_stamp) < datetime.timedelta(hours=1):
+# 			return True
 
-	try:
-		response = requests.get('http://192.168.1.141:5000/get_status')
-		if response.status_code ==  200:
-						data = response.json()
-		else:
-						print("Failed to recive data", end=" ")
-						data = None
-	except requests.exceptions.RequestException as e:
-					print("An error occured: ", e, end=" ")
-					data = None
-	return data
+# 	return False
+
+# def leaf_status():
+# 	try:
+# 		leaf = Leaf(username='hansalin@gmail.com', password='L@ngdrag00', region_code='NE')
+# 		r = leaf.BatteryStatusRecordsRequest()
+# 	except:
+# 		return -1
+# 	soc = int(r['BatteryStatusRecords']['BatteryStatus']['SOC']['Value'])
+# 	if soc == 100:
+# 		return 0
+# 	# TODO fix this
+# 	charging_hours = int(r['BatteryStatusRecords']['TimeRequiredToFull200']['HourRequiredToFull'])
+
+# 	if charging_hours != 0:
+# 		charging_hours = charging_hours + 1
+# 	pprint(r)
+# 	# TODO This might be needed to uncomment
+# 	# leaf.BatteryRemoteChargingRequest()
+# 	print(f"Charging hours: {charging_hours}", end=" ")
+# 	return charging_hours
+
+# def changeChargeStatusGaro(charging, charge, now, available):
+# 	if charging and not available:
+# 		charging = False
+
+# 	if charging == True and charge == False:
+# 		turn_on_value = "0"
+# 		charging = False
 
 
-def set_button_state(state):
-	response = requests.post('http://127.0.0.1:5000/button_state', json=state)
-	return response.text
+# 		response = on_off_Garo(turn_on_value)
+# 		if not response:
+# 			charging = True
+# 			print("Status not changed at GARO!", end=" ")
+# 		else:
+# 			print(f"Garo turned off at: {now}", end=" ")
 
-def get_now(*args):
-	if args:
-		now = args[0] + datetime.timedelta(minutes=20)
-		print(now, end=" ")
-		return now, 2
-	now = datetime.datetime.now()
-	print(now, end=" ")
-	timezone = pytz.timezone('Europe/Stockholm')
-	utc_offset = timezone.localize(now).utcoffset().seconds/3600
-	return now, utc_offset
+# 	if charging == False and charge  == True:
+# 		turn_on_value = "1"
+# 		charging = True
 
-def lowTemp():
-	"""
-	This function get the temperture from a local device
-	"""
+# 		response = on_off_Garo(turn_on_value)
+# 		if not response:
+# 			charging = False
+# 			print("Status not changed at GARO!", end=" ")
+# 		else:
+# 			print(f"Garo turned on at: {now}", end=" ")
 
-	try:
-		url = 'http://192.168.1.200'
-		page = requests.get(url=url)
-		soup = BeautifulSoup(page.content, "html.parser")
-		data = soup.find_all("p")[0].text
-		temp = data.split(' ')[1]
-		temp = float(temp)
+# 	return charging
 
-		if temp < -20:
-			return True
-		else:
-			return False
-	except:
-		return False	
+# def get_button_state():
 
-def creta_data_file():
-	data = {}
+# 	try:
+# 		response = requests.get('http://192.168.1.141:5000/get_status')
+# 		if response.status_code ==  200:
+# 						data = response.json()
+# 		else:
+# 						print("Failed to recive data", end=" ")
+# 						data = None
+# 	except requests.exceptions.RequestException as e:
+# 					print("An error occured: ", e, end=" ")
+# 					data = None
+# 	return data
 
-	data['nordpool'] = pd.DataFrame()
-	data['last_down_load'] = datetime.datetime.now() - datetime.timedelta(hours=24)
-	data['new_down_load'] = False 
-	data['auto'] = 0
-	data['fast_smart'] = 0
-	data['on'] = 0
-	data['schedule'] = pd.DataFrame()
-	data['remaining_hours'] = 0
-	data['charge'] = False
-	data['charging'] = True
-	data['connected'] = 0
-	data['hours'] = 0
 
-	return data
+# def set_button_state(state):
+# 	response = requests.post('http://127.0.0.1:5000/button_state', json=state)
+# 	return response.text
+
+# def get_now(*args):
+# 	if args:
+# 		now = args[0] + datetime.timedelta(minutes=20)
+# 		print(now, end=" ")
+# 		return now, 2
+# 	now = datetime.datetime.now()
+# 	print(now, end=" ")
+# 	timezone = pytz.timezone('Europe/Stockholm')
+# 	utc_offset = timezone.localize(now).utcoffset().seconds/3600
+# 	return now, utc_offset
+
+# def lowTemp():
+# 	"""
+# 	This function get the temperture from a local device
+# 	"""
+
+# 	try:
+# 		url = 'http://192.168.1.200'
+# 		page = requests.get(url=url)
+# 		soup = BeautifulSoup(page.content, "html.parser")
+# 		data = soup.find_all("p")[0].text
+# 		temp = data.split(' ')[1]
+# 		temp = float(temp)
+
+# 		if temp < -20:
+# 			return True
+# 		else:
+# 			return False
+# 	except:
+# 		return False	
+
+# def creta_data_file():
+# 	data = {}
+
+# 	data['nordpool'] = pd.DataFrame()
+# 	data['last_down_load'] = datetime.datetime.now() - datetime.timedelta(hours=24)
+# 	data['new_down_load'] = False 
+# 	data['auto'] = 0
+# 	data['fast_smart'] = 0
+# 	data['on'] = 0
+# 	data['schedule'] = pd.DataFrame()
+# 	data['remaining_hours'] = 0
+# 	data['charge'] = False
+# 	data['charging'] = True
+# 	data['connected'] = 0
+# 	data['hours'] = 0
+
+# 	return data
 
 try:
 	with open('data/saved_data.pkl', 'rb') as f:
