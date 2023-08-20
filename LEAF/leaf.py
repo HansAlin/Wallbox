@@ -1,9 +1,10 @@
 from leafpy import Leaf
 from pprint import pprint
+from CONFIG.config import username, password, region_code
 
 def leaf_status():
 	try:
-		leaf = Leaf(username='hansalin@gmail.com', password='L@ngdrag00', region_code='NE')
+		leaf = Leaf(username=username, password=password, region_code=region_code)
 		r = leaf.BatteryStatusRecordsRequest()
 		pprint(r)
 	except:
