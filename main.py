@@ -464,8 +464,8 @@ while True:
 				status_quo = True
 				print("Status quo!", end=" ")
 
-			elif (response['auto'] == 1 and data['auto'] != 1):
-				hours = leaf_status()
+			elif (response['auto'] == 1 and ( data['auto'] != 1 or (data['connected'] == 0 and connected == 1))):
+				hours, soc = leaf_status()
 				if hours > 0:
 					schedule, remaining_hours = get_chargeSchedule(hour_to_charged=hours, nordpool_data=data['nordpool'], now=now, pattern='auto' )
 				elif hours == 0:
@@ -482,13 +482,13 @@ while True:
 				data['schedule'] = schedule
 				data['remaining_hours'] = remaining_hours
 
-			elif (response['fast_smart'] == 1 and data['fast_smart'] != 1) :
+			elif (response['fast_smart'] == 1 and ( data['fast_smart'] != 1 or (data['connected'] == 0 and connected == 1))) :
 				hours = response['hours']
 				schedule, remaining_hours = get_chargeSchedule(hour_to_charged=hours, nordpool_data=data['nordpool'], now=now, pattern='fast_smart')
 				data['schedule'] = schedule
 				data['remaining_hours'] = remaining_hours
 
-			elif response['on']== 1 and data['on'] != 1:
+			elif (response['on']== 1 and ( data['on'] != 1 or (data['connected'] == 0 and connected == 1 ))):
 				charge = True
 				schedule = pd.DataFrame()
 				remaining_hours = 0
