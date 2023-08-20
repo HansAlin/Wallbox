@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!-- <!DOCTYPE html>
 	<center>
 	<head>
 		<title>Charger</title>
@@ -38,4 +38,62 @@
                 </h3>
 	</body>	
 	</center>
+</html> -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Charger Control</title>
+    <link rel="stylesheet" href="../static/style.css">
+</head>
+<body>
+	<center>
+    <header>
+        <h1>Charger Control</h1>
+        <h2>Status and Control</h2>
+    </header>
+
+    <section class="control-section">
+        <h3>Auto</h3>
+        {% if auto == 1 %}
+            <h2> ON </h2>
+            <a href="/auto/off" class="button">TURN OFF</a>
+        {% else %}
+        <h2> OFF </h2>
+            <a href="/auto/on" class="button">TURN ON</a>
+        {% endif %}
+    </section>
+
+    <section class="control-section">
+        <h3>Fast Smart Charge within 12 hours</h3>
+        {% if fast_smart == 1 %}
+            <h2> ON </h2>
+            <a href="/fast_smart/off" class="button">TURN OFF</a>
+        {% else %}
+        <h2> OFF </h2>
+            <a href="/fast_smart/on" class="button">TURN ON</a>
+        {% endif %}
+
+        <form action="/set_value" method="post">
+            <label for="hours">Hours needed:</label>
+            <input type="text" id="hours" name="hours" value="{{ hours }}">
+            <button type="submit" class="button">Submit</button>
+        </form>
+    </section>
+
+    <section class="control-section">
+        <h3>Now</h3>
+        {% if on == 1 %}
+            <h2> ON </h2>
+            <a href="/now/off" class="button">TURN OFF</a>
+        {% else %}
+        <h2> OFF </h2>
+            <a href="/now/on" class="button">TURN ON</a>
+        {% endif %}
+    </section>
+	</center>
+</body>
 </html>
+
