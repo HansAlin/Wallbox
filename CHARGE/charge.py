@@ -117,8 +117,16 @@ def get_button_state():
 	return data
 
 def set_button_state(state):
-	response = requests.post(server_url + '/button_state', json=state)
-	return response.text
+	try:
+		response = requests.post(server_url + '/set_state', json=state).status_code
+		if response == 200:
+			print("Successful update state on server!")
+		else:
+			print("Could not update state on server!")
+		return response
+	except:
+		print("Not able to contact server!")
+		return None
 
 def get_now(*args):
 	if args:

@@ -49,9 +49,6 @@ now, utc_offset = get_now()
 print()
 while True:
 
-	# Time TODO remove if statement and replace with now
-
-
 	now, utc_offset = get_now()
 
 	# If it is more than 24 h since last download, download!
@@ -60,16 +57,12 @@ while True:
 
 		nordpool = getDataNordPool(utc_offset=utc_offset, now=now, prev_data=data['nordpool'])
 		
-		
 		last_down_load = datetime.datetime(year=now.year, month=now.month, day=now.day, hour=14)
 		new_download = True
 		data['nordpool'] = nordpool
 		data['last_down_load'] = last_down_load
 		data['new_down_load'] = new_download
 		
-
-
-
 	connected, available = get_Garo_status()
 	
 	if connected != 0:
@@ -162,7 +155,10 @@ while True:
 			if not status_quo and not data['schedule'].empty:
 				charge = ifCharge(charge_schedule=data['schedule'], now=now)
 				data['charge'] = charge
-
+			if response['on'] == 1 or response['fast_smart'] and data['schedule'].empty:
+				# TODO implement change button state on server to auto
+				print("Default auto!")
+				
 			data['auto'] = response['auto']
 			data['fast_smart'] = response['fast_smart']
 			data['on'] = response['on']
@@ -183,14 +179,9 @@ while True:
 		data['remaining_hours'] = remaining_hours
 		data['charge'] = charge
 
-
-
-
 	elif connected == None:
 		time.sleep(time_to_sleep)
 		continue
-
-		
 	
 	charging = changeChargeStatusGaro(charging=data['charging'], charge=data['charge'], now=now, available=available)
 	if charging != data['charging']:
@@ -201,13 +192,10 @@ while True:
 	else:
 		print("Not charging!", end=" ")
 
-
 	if not data['schedule'].empty:
 		if datetime.timedelta(hours=1) + data['schedule']['TimeStamp'].iloc[-1] < now:
 			schedule = pd.DataFrame()
 			data['schedule'] = schedule
-
-
 
 	new_download = False   # After the first loop of new data it turns to old
 
@@ -215,35 +203,8 @@ while True:
 	data['charging'] = charging
 	new_download = False
 	
-	# data['charging'] = charging
-	
-
 	with open('data/saved_data.pkl', 'wb') as f:
 			pickle.dump(data,f)
-
-	# try:
-	# 	with open('data/data_log.pkl', 'rb') as f:
-	# 		file_content = f.read()
-	# 		data_log = pickle.loads(file_content)
-
-	# 		data_log['last_down_load'].append(data['last_down_load'])
-	# 		data_log['new_down_load'].append(data['new_down_load'])
-	# 		data_log['auto'].append(data['auto'])
-	# 		data_log['fast_smart'].append(data['fast_smart'])
-	# 		data_log['on'].append(data['on'])
-	# 		data_log['remaining_hours'].append(data['remaining_hours'])
-	# 		data_log['charge'].append(data['charge'])
-	# 		data_log['charging'].append(data['charging'])
-	# 		data_log['connected'].append(data['connected'])
-	# 		data_log['hours'].append(data['hours'])
-	# 		data_log['TimeStamp'].append(data['TimeStamp'])
-
-	# 	with open('data/data_log.pkl', 'wb') as f:
-	# 		pickle.dump(data_log,f)
-	# except:
-	# 	with open('data/data_log.pkl', 'wb') as f:
-	# 		pickle.dump(data,f)
-
 
 	print()
 	time.sleep(time_to_sleep)
