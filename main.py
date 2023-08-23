@@ -16,7 +16,7 @@ from bs4 import BeautifulSoup
 from GARO.garo import get_Garo_status, on_off_Garo
 from LEAF.leaf import leaf_status
 from NordPool.nordPool import getDataNordPool
-from CHARGE.charge import get_chargeSchedule, ifCharge, changeChargeStatusGaro, get_button_state, get_now, lowTemp, creta_data_file
+from CHARGE.charge import get_chargeSchedule, ifCharge, changeChargeStatusGaro, get_button_state, get_now, lowTemp, creta_data_file, set_button_state
 
 print()
 """
@@ -158,7 +158,8 @@ while True:
 			if response['on'] == 1 or response['fast_smart'] and data['schedule'].empty:
 				# TODO implement change button state on server to auto
 				print("Default auto!")
-				
+				_  = set_button_state({'auto':1})
+
 			data['auto'] = response['auto']
 			data['fast_smart'] = response['fast_smart']
 			data['on'] = response['on']

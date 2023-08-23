@@ -51,8 +51,13 @@ def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern):
 		charge_schedule = charge_schedule.sort_values(by='TimeStamp')
 
 	elif pattern == 'on':
-		#TODO implement
+		#TODO test
+		hours_on = 16
 		print("Charge now", end=" ")
+		df_sub = df_sub[df_sub['TimeStamp'] < now + datetime.timedelta(hours=hours_on)]
+		charge_schedule = df_sub
+		charge_schedule['TimeStamp'] = pd.to_datetime(charge_schedule['TimeStamp'])
+		charge_schedule = charge_schedule.sort_values(by='TimeStamp')
 
 
 	print(f"Charging schedule {charge_schedule['TimeStamp']}", end=" ")
