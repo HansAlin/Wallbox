@@ -4,6 +4,7 @@ import requests
 import pytz
 from bs4 import BeautifulSoup
 from GARO.garo import on_off_Garo
+from CONFIG.config import low_temp_url, server_url, tz_region
 
 
 def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern):
@@ -104,7 +105,7 @@ def changeChargeStatusGaro(charging, charge, now, available):
 def get_button_state():
 
 	try:
-		response = requests.get('http://192.168.1.141:5000/get_status')
+		response = requests.get(server_url + '/get_status')
 		if response.status_code ==  200:
 						data = response.json()
 		else:
@@ -116,17 +117,20 @@ def get_button_state():
 	return data
 
 def set_button_state(state):
-	response = requests.post('http://127.0.0.1:5000/button_state', json=state)
+	response = requests.post(server_url + '/button_state', json=state)
 	return response.text
 
 def get_now(*args):
 	if args:
 		now = args[0] + datetime.timedelta(minutes=20)
 		print(now, end=" ")
-		return now, 2
+		timezone = pytz.timezone(tz_region)
+		utc_offset = timezone.localize(now).utcoffset().seconds/3600
+		return now, utc_offset
+	
 	now = datetime.datetime.now()
 	print(now, end=" ")
-	timezone = pytz.timezone('Europe/Stockholm')
+	timezone = pytz.timezone(tz_region)
 	utc_offset = timezone.localize(now).utcoffset().seconds/3600
 	return now, utc_offset
 
@@ -137,7 +141,7 @@ def lowTemp():
 	"""
 
 	try:
-		url = 'http://192.168.1.200'
+		url = low_temp_url
 		page = requests.get(url=url)
 		soup = BeautifulSoup(page.content, "html.parser")
 		data = soup.find_all("p")[0].text

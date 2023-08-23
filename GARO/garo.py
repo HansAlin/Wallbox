@@ -3,6 +3,7 @@ from selenium.webdriver.support.ui import Select
 from selenium.webdriver.common.by import By
 import time
 import requests
+from CONFIG.config import url_garo
 
 def on_off_Garo(value):
 	"""
@@ -23,8 +24,8 @@ def on_off_Garo(value):
 		# For raspberry pi /usr/bin/chromedriver
 		#driver = webdriver.Chrome(r'/usr/bin/chromedriver', options=options)
 		driver = webdriver.Chrome(options=options)
-		
-		driver.get("http://192.168.1.81:8080/serialweb/")
+		url = url_garo + "/serialweb/"
+		driver.get(url)
 		time.sleep(20)
 
 		x = driver.find_element(by=By.ID, value="controlmode")
@@ -47,7 +48,7 @@ def get_Garo_status():
 
 	"""
 	try:
-		url = 'http://192.168.1.81:8080/servlet/rest/chargebox/status?_=1'
+		url = url_garo + '/servlet/rest/chargebox/status?_=1'
 		response = requests.get(url=url)
 		data = response.json()
 

@@ -3,6 +3,7 @@ import datetime
 from pprint import pprint
 import pandas as pd
 import pickle
+from CONFIG.config import region
 
 def getDataNordPool(utc_offset, now, prev_data):
 
@@ -15,8 +16,8 @@ def getDataNordPool(utc_offset, now, prev_data):
 			prices_bas = elbas.Prices()
 			
 			end_date = datetime.datetime(year=now.year, month=now.month, day=now.day, hour=14)
-			prices = prices_bas.hourly(end_date=end_date, areas=['SE3'])
-			last = prices['areas']['SE3']['Last']
+			prices = prices_bas.hourly(end_date=end_date, areas=[region])
+			last = prices['areas'][region]['Last']
 			pprint(last)
 			timestamp = []
 			price = []
@@ -35,11 +36,11 @@ def getDataNordPool(utc_offset, now, prev_data):
 		else:
 			prices_spot = elspot.Prices()
 
-			prices = prices_spot.hourly(areas=['SE3'])
+			prices = prices_spot.hourly(areas=[region])
 			pprint(prices)
 			timestamp = []
 			price = []
-			values = prices['areas']['SE3']['values']
+			values = prices['areas'][region]['values']
 			for element in values:
 					timestamp.append(element['start'] + datetime.timedelta(hours=utc_offset))
 					price.append(element['value'])
@@ -80,8 +81,8 @@ def getDataNordPool(utc_offset, now, prev_data):
 					prices_bas = elbas.Prices()
 					
 					end_date = datetime.datetime(year=now.year, month=now.month, day=now.day, hour=14)
-					prices = prices_bas.hourly(end_date=end_date, areas=['SE3'])
-					last = prices['areas']['SE3']['Last']
+					prices = prices_bas.hourly(end_date=end_date, areas=[region])
+					last = prices['areas'][region]['Last']
 					pprint(last)
 					timestamp = []
 					price = []
