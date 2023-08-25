@@ -92,7 +92,7 @@ while True:
 				status_quo = True
 				print("Status quo!", end=" ")
 
-			elif (response['auto'] == 1 and ( data['auto'] != 1 or (data['connected'] == 0 and connected == 1))):
+			elif (response['auto'] == 1 and data['auto'] != 1) or (data['connected'] == 0 and connected == 1):
 				hours, soc = leaf_status()
 				if hours > 0:
 					schedule, remaining_hours = get_chargeSchedule(hour_to_charged=hours, nordpool_data=data['nordpool'], now=now, pattern='auto' )
@@ -110,16 +110,16 @@ while True:
 				data['schedule'] = schedule
 				data['remaining_hours'] = remaining_hours
 
-			elif (response['fast_smart'] == 1 and ( data['fast_smart'] != 1 or (data['connected'] == 0 and connected == 1))) :
+			elif (response['fast_smart'] == 1 and data['fast_smart'] != 1 )or (data['connected'] == 0 and connected == 1) :
 				hours = response['hours']
 				schedule, remaining_hours = get_chargeSchedule(hour_to_charged=hours, nordpool_data=data['nordpool'], now=now, pattern='fast_smart')
 				data['schedule'] = schedule
 				data['remaining_hours'] = remaining_hours
 
-			elif (response['on']== 1 and ( data['on'] != 1 or (data['connected'] == 0 and connected == 1 ))):
+			elif (response['on']== 1 and data['on'] != 1) or (data['connected'] == 0 and connected == 1 ):
 				charge = True
-				schedule = pd.DataFrame()
-				remaining_hours = 0
+				schedule,	remaining_hours = get_chargeSchedule(hour_to_charged=16, nordpool_data=data['nordpool'], now=now, pattern='on' )
+				data['schedule'] = schedule
 				data['charge'] = charge
 				data['remaining_hours'] = remaining_hours
 
@@ -148,17 +148,20 @@ while True:
 				data['schedule'] = schedule
 				data['remaining_hours'] = remaining_hours
 				data['charge'] = charge
-
-			if connected == 2:
+			elif connected == 2:
 				data['charging'] = True
+			elif connected == None:
+				time.sleep(time_to_sleep)
+				continue	
 
 			if not status_quo and not data['schedule'].empty:
 				charge = ifCharge(charge_schedule=data['schedule'], now=now)
 				data['charge'] = charge
-			if response['on'] == 1 or response['fast_smart'] and data['schedule'].empty:
+		
+			if (response['on'] == 1 or response['fast_smart']) and data['schedule'].empty:
 				# TODO implement change button state on server to auto
-				print("Default auto!")
-				_  = set_button_state({'auto':1})
+				print("Default auto!", end=" ")
+				_  = set_button_state({'auto':1,'fast_smart':0,'on':0})
 
 			data['auto'] = response['auto']
 			data['fast_smart'] = response['fast_smart']
@@ -172,7 +175,7 @@ while True:
 			data['charge'] = charge
 
 	elif connected == 0:
-		print("Car not connected!", end=" ")
+		
 		charge = False
 		schedule = pd.DataFrame()
 		remaining_hours = 0
@@ -180,12 +183,11 @@ while True:
 		data['remaining_hours'] = remaining_hours
 		data['charge'] = charge
 
-	elif connected == None:
-		time.sleep(time_to_sleep)
-		continue
+	
 	
 	charging = changeChargeStatusGaro(charging=data['charging'], charge=data['charge'], now=now, available=available)
 	if charging != data['charging']:
+		print("Charging status is changing!")
 		time.sleep(4)
 		connected, available = get_Garo_status()
 	if charging:

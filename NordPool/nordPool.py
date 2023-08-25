@@ -29,7 +29,7 @@ def getDataNordPool(utc_offset, now, prev_data):
 
 			with open('data/log_nordpool.pkl', 'wb') as f:
 				pickle.dump(df,f)
-			
+			df.to_csv('data/log_nordpool.csv')
 			return df
 
 
@@ -61,18 +61,14 @@ def getDataNordPool(utc_offset, now, prev_data):
 				
 				#if last_time_stamp.day + datetime.timedelta(hours=24) == first_time_stamp.day:
 				if last_day + 1 == first_day:
-					with open('data/log_nordpool.pkl', 'rb') as f:
-						log_nordpool = pickle.load(f)
+					
 					concat_df = pd.concat([prev_data, new_data], axis=0, ignore_index=True)
-					log_nordpool = pd.concat([log_nordpool, new_data], axis=0, ignore_index=True)
-
 					concat_df = concat_df.reset_index(drop=True)
-					log_nordpool = log_nordpool.reset_index(drop=True)
 					concat_df = concat_df.iloc[-96:,]
 	
 					with open('data/log_nordpool.pkl', 'wb') as f:
-						pickle.dump(log_nordpool,f)
-					log_nordpool.to_csv('data/log_nordpool.csv')
+						pickle.dump(concat_df,f)
+					concat_df.to_csv('data/log_nordpool.csv')
 					
 					return concat_df
 				else:
@@ -94,12 +90,12 @@ def getDataNordPool(utc_offset, now, prev_data):
 
 					with open('data/log_nordpool.pkl', 'wb') as f:
 						pickle.dump(df,f)
-					
+					df.to_csv('data/log_nordpool.csv')
 					return df
 					
 
 			return prev_data
 	except:
-		print("Could not get data from Nordpool:")	
+		print("Could not get data from Nordpool:", end=" ")	
 		return prev_data
 

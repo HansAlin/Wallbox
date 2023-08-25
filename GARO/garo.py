@@ -77,10 +77,10 @@ def get_Garo_status():
 			print("Error reading values from GARO wallbox!")
 			connection = None
 
-
+		print(f"From Garo: {data['connector']} and {data['mode']}", end=" ")
 		return connection, available
 
 	except:
-		print("No available to contact wallbox!", end=" ")
+		print("Not able to contact wallbox!", end=" ")
 		return None, None
   
