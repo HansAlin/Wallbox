@@ -16,7 +16,7 @@ from bs4 import BeautifulSoup
 from GARO.garo import get_Garo_status, on_off_Garo
 from LEAF.leaf import leaf_status
 from NordPool.nordPool import getDataNordPool
-from CHARGE.charge import get_chargeSchedule, ifCharge, changeChargeStatusGaro, get_button_state, get_now, lowTemp, creta_data_file, set_button_state
+from CHARGE.charge import get_chargeSchedule, ifCharge, changeChargeStatusGaro, get_button_state, get_now, lowTemp, creta_data_file, set_button_state, connected_to_lan
 
 print()
 """
@@ -50,6 +50,10 @@ print()
 while True:
 
 	now, utc_offset = get_now()
+
+	if not connected_to_lan:
+		time.sleep(time_to_sleep)
+		continue
 
 	# If it is more than 24 h since last download, download!
 	 

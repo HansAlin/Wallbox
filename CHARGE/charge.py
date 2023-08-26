@@ -185,3 +185,19 @@ def creta_data_file():
 	data['hours'] = 0
 
 	return data
+
+def connected_to_lan():
+	# initializing URL
+	url = "http://router.asus.com/Main_Login.asp"
+	timeout = 10
+	try:
+			# requesting URL
+			request = requests.get(url,
+														timeout=timeout)
+			return True
+	
+	# catching exception
+	except (requests.ConnectionError,
+					requests.Timeout) as exception:
+			print("Internet is off")
+			return False
