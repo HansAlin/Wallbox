@@ -51,7 +51,7 @@ while True:
 
 	now, utc_offset = get_now()
 
-	if not connected_to_lan:
+	if not connected_to_lan():
 		time.sleep(time_to_sleep)
 		continue
 
