@@ -49,7 +49,7 @@ def get_Garo_status():
 	"""
 	try:
 		url = url_garo + '/servlet/rest/chargebox/status?_=1'
-		response = requests.get(url=url)
+		response = requests.get(url=url, timeout=20)
 		data = response.json()
 
 

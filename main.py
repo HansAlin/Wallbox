@@ -187,7 +187,7 @@ while True:
 	
 	charging = changeChargeStatusGaro(charging=data['charging'], charge=data['charge'], now=now, available=available)
 	if charging != data['charging']:
-		print("Charging status is changing!")
+		print("Charging status is changing!", end=" ")
 		time.sleep(4)
 		connected, available = get_Garo_status()
 	if charging:

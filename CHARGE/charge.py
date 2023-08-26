@@ -110,7 +110,7 @@ def changeChargeStatusGaro(charging, charge, now, available):
 def get_button_state():
 
 	try:
-		response = requests.get(server_url + '/get_status')
+		response = requests.get(server_url + '/get_status', timeout=20)
 		if response.status_code ==  200:
 						data = response.json()
 		else:
@@ -155,7 +155,7 @@ def lowTemp():
 
 	try:
 		url = low_temp_url
-		page = requests.get(url=url)
+		page = requests.get(url=url, timeout=20)
 		soup = BeautifulSoup(page.content, "html.parser")
 		data = soup.find_all("p")[0].text
 		temp = data.split(' ')[1]
