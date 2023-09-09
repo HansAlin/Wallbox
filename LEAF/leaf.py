@@ -1,22 +1,38 @@
 from leafpy import Leaf
 from pprint import pprint
+import time
 from CONFIG.config import username, password, region_code
+import datetime
 
-def leaf_status():
+def leaf_status(now, utc):
+	count = 0
+	up_to_date = False
 	try:
-		leaf = Leaf(username=username, password=password, region_code=region_code)
-		r = leaf.BatteryStatusRecordsRequest()
-		pprint(r)
+		while(count < 5 and not up_to_date):
+			leaf = Leaf(username=username, password=password, region_code=region_code)
+			time.sleep(2)
+			r = leaf.BatteryStatusRecordsRequest()
+			# Check if data is up to date
+			targetdate = r['BatteryStatusRecords']['TargetDate']
+			targetdate = datetime.datetime.strptime(targetdate, '%Y/%m/%d %H:%M') + datetime.timedelta(hours=utc)
+			if (targetdate - now) < datetime.timedelta(seconds=360):
+				up_to_date = True
+			else:
+				time.sleep(60)	
+			pprint(r)
+			count += 1 
 	except:
 		return -1, -1
 	
 	try:
 		soc = int(r['BatteryStatusRecords']['BatteryStatus']['SOC']['Value'])
+		
 		if soc == 100:
 			return 0, soc
 	except:
 		print("Not poosible to read SOC status")
 		soc = 0	
+		charging_hours = 15
 	# TODO fix this
 	try:
 		charging_hours = int(r['BatteryStatusRecords']['TimeRequiredToFull200']['HourRequiredToFull'])

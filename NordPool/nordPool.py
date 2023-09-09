@@ -6,7 +6,10 @@ import pickle
 from CONFIG.config import region
 
 def getDataNordPool(utc_offset, now, prev_data):
-
+	"""
+	alternative url
+	https://www.elprisetjustnu.se/api/v1/prices/[ÅR]/[MÅNAD]-[DAG]_[PRISKLASS].json
+	"""
 	print(f"Downloaded data from Nordpool at: {now}", end=" ")
 	"""
 	"""

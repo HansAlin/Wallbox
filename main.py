@@ -97,7 +97,7 @@ while True:
 				print("Status quo!", end=" ")
 
 			elif (response['auto'] == 1 and data['auto'] != 1) or (data['connected'] == 0 and connected == 1):
-				hours, soc = leaf_status()
+				hours, soc = leaf_status(now=now, utc=utc_offset)
 				if hours > 0:
 					schedule, remaining_hours = get_chargeSchedule(hour_to_charged=hours, nordpool_data=data['nordpool'], now=now, pattern='auto' )
 				elif hours == 0:
