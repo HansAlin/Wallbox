@@ -15,12 +15,12 @@ def leaf_status(now, utc):
 			# Check if data is up to date
 			targetdate = r['BatteryStatusRecords']['TargetDate']
 			targetdate = datetime.datetime.strptime(targetdate, '%Y/%m/%d %H:%M') + datetime.timedelta(hours=utc)
-			if (targetdate - now) < datetime.timedelta(seconds=360):
+			if (now - targetdate ) < datetime.timedelta(seconds=900):
 				up_to_date = True
 			else:
 				time.sleep(60)	
-			pprint(r)
 			count += 1 
+		pprint(r)	
 	except:
 		return -1, -1
 	
