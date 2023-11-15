@@ -10,33 +10,41 @@ def on_off_Garo(value):
 	This function takes the argument value and sets 
 	the Garo Charger to: "1" = on, "0" = off, "2" = Schedule
 	"""	
-	# For raspberry pi 
-	# r'/usr/bin/chromedriver'
+	# Uncomment this for running
+	############################################################
 
-	options =  webdriver.ChromeOptions()
-	options.add_argument('--headless')
-	options.add_argument('--log-level=OFF')
-	options.add_argument('--disable-infobars')
-	options.add_argument('--disable-gpu')
-	options.add_experimental_option('excludeSwitches', ['disable-logging'])
+	# # For raspberry pi 
+	# # r'/usr/bin/chromedriver'
 
-	try:
-		# For raspberry pi /usr/bin/chromedriver
-		#driver = webdriver.Chrome(r'/usr/bin/chromedriver', options=options)
-		driver = webdriver.Chrome(options=options)
-		url = url_garo + "/serialweb/"
-		driver.get(url)
-		time.sleep(20)
+	# options =  webdriver.ChromeOptions()
+	# options.add_argument('--headless')
+	# options.add_argument('--log-level=OFF')
+	# options.add_argument('--disable-infobars')
+	# options.add_argument('--disable-gpu')
+	# options.add_experimental_option('excludeSwitches', ['disable-logging'])
 
-		x = driver.find_element(by=By.ID, value="controlmode")
-		drop = Select(x)
-		drop.select_by_value(value)
-		driver.close()
-		driver.quit()
-		return True
-	except:
-		print('No connection to GARO:', end=" ")
-		return False
+	# try:
+	# 	# For raspberry pi /usr/bin/chromedriver
+	# 	#driver = webdriver.Chrome(r'/usr/bin/chromedriver', options=options)
+
+		
+	# 	driver = webdriver.Chrome(options=options)
+	# 	url = url_garo + "/serialweb/"
+	# 	driver.get(url)
+	# 	time.sleep(30)
+
+	# 	x = driver.find_element(by=By.ID, value="controlmode")
+	# 	drop = Select(x)
+	# 	drop.select_by_value(value)
+	# 	driver.close()
+	# 	driver.quit()
+	# 	print('Status updated in GARO!:', end=" ")
+	# 	return True
+	# except:
+	# 	print('Not able to update status in GARO!:', end=" ")
+	# 	return False
+	############################################################
+	return True
 
 def get_Garo_status():
 	"""
@@ -49,9 +57,10 @@ def get_Garo_status():
 	"""
 	try:
 		url = url_garo + '/servlet/rest/chargebox/status?_=1'
-		response = requests.get(url=url, timeout=20)
+		response = requests.get(url=url, timeout=30)
 		data = response.json()
 
+		
 
 		if data['mode'] == "ALWAYS_OFF":
 			available = 0
@@ -60,7 +69,7 @@ def get_Garo_status():
 		elif data['mode'] == "SCHEMA":
 			available = 2
 		else:
-			print("Error reading values from GARO wallbox!")
+			print("Error reading values from GARO wallbox!", end=" ")
 			available = None
 
 		if data['connector'] == "NOT_CONNECTED":
@@ -74,7 +83,7 @@ def get_Garo_status():
 		elif data['connector'] == 'CHARGING_FINISHED':
 			connection = 3
 		else:
-			print("Error reading values from GARO wallbox!")
+			print("Error reading values from GARO wallbox!", end=" ")
 			connection = None
 
 		print(f"From Garo: {data['connector']} and {data['mode']}", end=" ")

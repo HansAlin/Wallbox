@@ -31,6 +31,7 @@ def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern):
 
 	fast_charge_limit = 12
 	if pattern == 'fast_smart':
+		# TODO Still uses all data and not a small sub set
 		if hour_to_charged > fast_charge_limit:
 			stop_charge = now + datetime.timedelta(hours=hour_to_charged)
 			charge_schedule = df_sub[df_sub['TimeStamp'] < stop_charge]
@@ -41,11 +42,13 @@ def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern):
 			charge_schedule = charge_schedule.sort_values(by='TimeStamp')
 
 	elif pattern == 'auto':
-		if hour_to_charged > 10:
-			remaining_hours = (hour_to_charged - 10)
-			hour_to_charged = 10
+		hour_limit = 12
+		if hour_to_charged > hour_limit:
+			remaining_hours = (hour_to_charged - hour_limit)
+			hour_to_charged = hour_limit
 		#TODO an algorithm that change the number of remaining hours based
 		# on previous price from nordpool
+		# make the first 80 % ours chosen first and then the rest 
 		charge_schedule = df_sub.nsmallest(hour_to_charged, 'value')
 		charge_schedule['TimeStamp'] = pd.to_datetime(charge_schedule['TimeStamp'])
 		charge_schedule = charge_schedule.sort_values(by='TimeStamp')

@@ -81,8 +81,12 @@ while True:
 				continue
 
 			status_quo = False
-			
+
+			###############################################
+			# If everthing was like last time
 			if response['auto'] == data['auto'] and response['fast_smart'] == data['fast_smart'] and response['on'] == data['on'] and response['hours'] == data['hours'] and connected == data['connected']:
+				
+				# If everything was like last time except that new data is downloaded from nordpool.
 				if data['new_down_load'] and data['remaining_hours'] > 0 and data['schedule'].empty:
 					schedule, remaining_hours = get_chargeSchedule(hour_to_charged=data['remaining_hours'], nordpool_data=data['nordpool'], now=now, pattern='auto' )
 					data['schedule'] = schedule
@@ -92,10 +96,16 @@ while True:
 					charge = ifCharge(charge_schedule=data['schedule'], now=now)
 				else:
 					charge = data['charge']
-				data['charge'] = charge
-				status_quo = True
-				print("Status quo!", end=" ")
 
+				if charge == data['charge']:
+					print("Status quo!", end=" ")
+					status_quo = True
+					
+				data['charge'] = charge
+
+			###############################################	
+			# The response from webserver have been changed to auto,
+			# or the car has been connected			
 			elif (response['auto'] == 1 and data['auto'] != 1) or (data['connected'] == 0 and connected == 1):
 				hours, soc = leaf_status(now=now, utc=utc_offset)
 				if hours > 0:
@@ -114,7 +124,11 @@ while True:
 				data['schedule'] = schedule
 				data['remaining_hours'] = remaining_hours
 
-			elif (response['fast_smart'] == 1 and data['fast_smart'] != 1 )or (data['connected'] == 0 and connected == 1) :
+			###############################################
+			# The response from webserver have been changed to fast_smart,
+			# or the car has been connected
+			# and was not cached in previous statement
+			elif (response['fast_smart'] == 1 and data['fast_smart'] != 1 ) or (data['connected'] == 0 and connected == 1) :
 				hours = response['hours']
 				schedule, remaining_hours = get_chargeSchedule(hour_to_charged=hours, nordpool_data=data['nordpool'], now=now, pattern='fast_smart')
 				data['schedule'] = schedule
@@ -156,6 +170,7 @@ while True:
 				data['charging'] = True
 			elif connected == None:
 				time.sleep(time_to_sleep)
+				print()
 				continue	
 
 			if not status_quo and not data['schedule'].empty:
@@ -174,7 +189,7 @@ while True:
 
 		# if low temp
 		else:
-			print("Low temp!")
+			print("Low temp!", end=" ")
 			charge = True
 			data['charge'] = charge
 
