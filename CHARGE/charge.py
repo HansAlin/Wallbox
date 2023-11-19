@@ -1,8 +1,10 @@
 import datetime
 import pandas as pd
+import numpy as np
 import requests
 import pytz
 from bs4 import BeautifulSoup
+import matplotlib.pyplot as plt	
 from GARO.garo import on_off_Garo
 from CONFIG.config import low_temp_url, server_url, tz_region
 
@@ -36,39 +38,73 @@ def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern):
 			stop_charge = now + datetime.timedelta(hours=hour_to_charged)
 			charge_schedule = df_sub[df_sub['TimeStamp'] < stop_charge]
 		else:
-			df_sub = df_sub[df_sub['TimeStamp'] < now + datetime.timedelta(hours=fast_charge_limit)]
-			charge_schedule = df_sub.nsmallest(hour_to_charged, 'value')
+			df_sub_sub = df_sub[df_sub['TimeStamp'] < now + datetime.timedelta(hours=fast_charge_limit)]
+			charge_schedule = df_sub_sub.nsmallest(hour_to_charged, 'value')
 			charge_schedule['TimeStamp'] = pd.to_datetime(charge_schedule['TimeStamp'])
 			charge_schedule = charge_schedule.sort_values(by='TimeStamp')
 
 	elif pattern == 'auto':
-		hour_limit = 12
+		hour_limit = 10
 		if hour_to_charged > hour_limit:
 			remaining_hours = (hour_to_charged - hour_limit)
 			hour_to_charged = hour_limit
 		#TODO an algorithm that change the number of remaining hours based
 		# on previous price from nordpool
 		# make the first 80 % ours chosen first and then the rest 
-		charge_schedule = df_sub.nsmallest(hour_to_charged, 'value')
-		charge_schedule['TimeStamp'] = pd.to_datetime(charge_schedule['TimeStamp'])
+
+		# Subsub charge_schedule
+		# firt 80 % of the hours
+		# The reason for this is that the care take more current in the 
+		# beginning of the charging
+		prior_fraction = 0.8
+		sub_hours = int(np.floor(hour_to_charged*prior_fraction))
+		sub_charge_schedule = df_sub.nsmallest(sub_hours, 'value')
+		sub_charge_schedule['TimeStamp'] = pd.to_datetime(sub_charge_schedule['TimeStamp'])
+		sub_charge_schedule = sub_charge_schedule.sort_values(by='TimeStamp')
+
+		# last 20 % of the hours
+		last_hours = hour_to_charged - sub_hours
+		# Last previus time  i schedule
+		last_sub_charge_hour = sub_charge_schedule['TimeStamp'].iloc[-1]
+		
+		df_sub_sub = df_sub[df_sub['TimeStamp'] > last_sub_charge_hour]
+		last_charge_schedule = df_sub_sub.nsmallest(last_hours, 'value')
+		length_of_schedule = len(last_charge_schedule.index)
+		if length_of_schedule < last_hours:
+			remaining_hours = remaining_hours + (last_hours - len(last_charge_schedule.index))
+
+		charge_schedule = pd.concat([sub_charge_schedule, last_charge_schedule])
 		charge_schedule = charge_schedule.sort_values(by='TimeStamp')
+
+
 
 	elif pattern == 'on':
 		#TODO test
 		hours_on = 16
 		print("Charge now", end=" ")
-		df_sub = df_sub[df_sub['TimeStamp'] < now + datetime.timedelta(hours=hours_on)]
-		charge_schedule = df_sub
+		df_sub_sub = df_sub[df_sub['TimeStamp'] < now + datetime.timedelta(hours=hours_on)]
+		charge_schedule = df_sub_sub
 		charge_schedule['TimeStamp'] = pd.to_datetime(charge_schedule['TimeStamp'])
 		charge_schedule = charge_schedule.sort_values(by='TimeStamp')
 
 
 	print(f"Charging schedule {charge_schedule['TimeStamp']}", end=" ")
-
+	plot_data_schedule(charge_schedule, df_sub, now)
 	print(f'With remaining hours {remaining_hours}', end=" ")
 	with  open('data/schedule_log.csv', 'a') as f:
 		f.write(str({'TimeStamp':now,'schedule':charge_schedule['TimeStamp']} ))
 	return pd.DataFrame(charge_schedule['TimeStamp']), remaining_hours
+
+def plot_data_schedule(charge_schedule, noorpool_data, now):
+	x1 = noorpool_data['TimeStamp'].values
+	y1 = noorpool_data['value'].values
+	plt.scatter(x1, y1 , color='blue')
+	x2 = charge_schedule['TimeStamp'].values
+	y2 = charge_schedule['value'].values
+	plt.scatter(x2, y2, color='red')
+	plt.savefig(f'data/plots/plot_{now.year}-{now.month}-{now.day}_{now.hour}:{now.minute}.png')
+	#plt.show()
+
 
 def ifCharge(charge_schedule, now):
 	charge_schedule = pd.DataFrame(charge_schedule)

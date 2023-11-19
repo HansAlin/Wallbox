@@ -87,7 +87,7 @@ while True:
 			if response['auto'] == data['auto'] and response['fast_smart'] == data['fast_smart'] and response['on'] == data['on'] and response['hours'] == data['hours'] and connected == data['connected']:
 				
 				# If everything was like last time except that new data is downloaded from nordpool.
-				if data['new_down_load'] and data['remaining_hours'] > 0 and data['schedule'].empty:
+				if data['new_down_load'] and data['remaining_hours'] > 0:
 					schedule, remaining_hours = get_chargeSchedule(hour_to_charged=data['remaining_hours'], nordpool_data=data['nordpool'], now=now, pattern='auto' )
 					data['schedule'] = schedule
 					data['remaining_hours'] = remaining_hours
@@ -106,7 +106,7 @@ while True:
 			###############################################	
 			# The response from webserver have been changed to auto,
 			# or the car has been connected			
-			elif (response['auto'] == 1 and data['auto'] != 1) or (data['connected'] == 0 and connected == 1):
+			elif (response['auto'] == 1 and data['auto'] != 1) or (data['connected'] == 0 and connected == 1 and data['auto'] == 1):
 				hours, soc = leaf_status(now=now, utc=utc_offset)
 				if hours > 0:
 					schedule, remaining_hours = get_chargeSchedule(hour_to_charged=hours, nordpool_data=data['nordpool'], now=now, pattern='auto' )
@@ -126,14 +126,18 @@ while True:
 
 			###############################################
 			# The response from webserver have been changed to fast_smart,
-			# or the car has been connected
+			# or the car has been connected and is in fast_smart mode
 			# and was not cached in previous statement
-			elif (response['fast_smart'] == 1 and data['fast_smart'] != 1 ) or (data['connected'] == 0 and connected == 1) :
+			elif (response['fast_smart'] == 1 and data['fast_smart'] != 1 ) or (data['connected'] == 0 and connected == 1 and data['fast_smart'] == 1 ):
 				hours = response['hours']
 				schedule, remaining_hours = get_chargeSchedule(hour_to_charged=hours, nordpool_data=data['nordpool'], now=now, pattern='fast_smart')
 				data['schedule'] = schedule
 				data['remaining_hours'] = remaining_hours
 
+			###############################################
+			# The response from webserver have been changed to on,
+			# or the car has been connected and is in on mode 'on'
+			# and was not cached in previous statement
 			elif (response['on']== 1 and data['on'] != 1) or (data['connected'] == 0 and connected == 1 ):
 				charge = True
 				schedule,	remaining_hours = get_chargeSchedule(hour_to_charged=16, nordpool_data=data['nordpool'], now=now, pattern='on' )
@@ -141,12 +145,18 @@ while True:
 				data['charge'] = charge
 				data['remaining_hours'] = remaining_hours
 
+			###############################################
+			# There is remaing hours to charge and new prices have occured
+			# and the car is in auto mode
+			# TODO this might be redundant
 			elif data['schedule'].empty and	response['auto'] == 1 and data['remaining_hours'] > 0 and data['new_download']:
 				hours = remaining_hours
 				schedule, remaining_hours = get_chargeSchedule(hour_to_charged=hours, df=nordpool, now=now, pattern='auto' )
 				data['schedule'] = schedule
 				data['remaining_hours'] = remaining_hours
 
+			###############################################
+			# The response is off
 			elif response['auto'] == 0 and response['fast_smart'] == 0 and response['on']== 0:
 				schedule = pd.DataFrame()
 				remaining_hours = 0

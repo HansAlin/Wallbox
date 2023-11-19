@@ -11,6 +11,7 @@ def on_off_Garo(value):
 	the Garo Charger to: "1" = on, "0" = off, "2" = Schedule
 	"""	
 	# Uncomment this for running
+	# TODO fix this
 	############################################################
 
 	# # For raspberry pi 
