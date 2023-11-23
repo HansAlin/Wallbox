@@ -158,6 +158,18 @@ def get_button_state():
 	except requests.exceptions.RequestException as e:
 					print("An error occured: ", e, end=" ")
 					data = None
+	
+	print("Web respons:", end=" ")
+	if data['auto'] == 1:
+		print("Auto = 1", end=" ")
+	elif data['fast_smart'] == 1:
+		print("Fast smart = 1", end=" ")
+	elif data['on'] == 1:
+		print("On = 1", end=" ")	
+	else:
+		print("All = 0", end=" ")
+	print(f"Hours: {data['hours']}", end=" ")			
+			
 	return data
 
 def set_button_state(state):

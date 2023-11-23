@@ -74,7 +74,7 @@ while True:
 		if not lowTemp():
 			# Respons from webserver
 			response = get_button_state()
-			print(f"Respons: {response}", end=" ")
+
 			# If no response
 			if response == None:
 				time.sleep(time_to_sleep)
@@ -98,7 +98,6 @@ while True:
 					charge = data['charge']
 
 				if charge == data['charge']:
-					print("Status quo!", end=" ")
 					status_quo = True
 					
 				data['charge'] = charge
@@ -169,7 +168,7 @@ while True:
 				# TODO Implement something that change:
 				#  auto to on, on server
 				# data['auto'] = 1
-				print("Car connected but charge finnished by car!", end=" ")
+				
 				charge = False
 				schedule = pd.DataFrame()
 				remaining_hours = 0
@@ -219,10 +218,7 @@ while True:
 		print("Charging status is changing!", end=" ")
 		time.sleep(4)
 		connected, available = get_Garo_status()
-	if charging:
-		print("Charging!", end=" ")
-	else:
-		print("Not charging!", end=" ")
+
 
 	if not data['schedule'].empty:
 		if datetime.timedelta(hours=1) + data['schedule']['TimeStamp'].iloc[-1] < now:
