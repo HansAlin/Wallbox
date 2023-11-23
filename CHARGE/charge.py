@@ -118,7 +118,7 @@ def ifCharge(charge_schedule, now):
 	return False
 
 def changeChargeStatusGaro(charging, charge, now, available):
-	if charging and not available:
+	if charging and not available == "ALWAYS_ON":
 		charging = False
 
 	if charging == True and charge == False:

@@ -61,34 +61,8 @@ def get_Garo_status():
 		response = requests.get(url=url, timeout=30)
 		data = response.json()
 
-		
-
-		if data['mode'] == "ALWAYS_OFF":
-			available = 0
-		elif data['mode'] == "ALWAYS_ON":
-			available = 1
-		elif data['mode'] == "SCHEMA":
-			available = 2
-		else:
-			print("Error reading values from GARO wallbox!", end=" ")
-			available = None
-
-		if data['connector'] == "NOT_CONNECTED":
-			connection = 0
-		# TODO might need to implement something that takes care of long periods of 'CHARGING_PAUSED'
-		# All theses statements gives that the car is connected in some way!  
-		elif data['connector'] == "CONNECTED" or data['connector'] == "DISABLED" or data['connector'] == 'CHARGING_PAUSED':
-			connection = 1
-		elif data['connector'] == "CHARGING"  :
-			connection = 2
-		elif data['connector'] == 'CHARGING_FINISHED':
-			connection = 3
-		else:
-			print("Error reading values from GARO wallbox!", end=" ")
-			connection = None
-
 		print(f"From Garo: {data['connector']} and {data['mode']}", end=" ")
-		return connection, available
+		return data['connector'], data['mode']
 
 	except:
 		print("Not able to contact wallbox!", end=" ")

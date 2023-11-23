@@ -68,8 +68,13 @@ while True:
 		data['new_down_load'] = new_download
 		
 	connected, available = get_Garo_status()
+	# Response options
+	# connected: "NOT_CONNECTED", "CONNECTED", "DISABLED", 'CHARGING_PAUSED':
+	# available: "ALWAYS_OFF", "ALWAYS_ON", "SCHEMA":
+	# TODO might need to implement something that takes care of long periods of 'CHARGING_PAUSED'
+		# All theses statements gives that the car is connected in some way!
 	
-	if connected != 0:
+	if connected != "NOT_CONNECTED":
 
 		if not lowTemp():
 			# Respons from webserver
@@ -105,7 +110,7 @@ while True:
 			###############################################	
 			# The response from webserver have been changed to auto,
 			# or the car has been connected			
-			elif (response['auto'] == 1 and data['auto'] != 1) or (data['connected'] == 0 and connected == 1 and data['auto'] == 1):
+			elif (response['auto'] == 1 and data['auto'] != 1) or (data['connected'] == "NOT_CONNECTED" and connected == "CONNECTED" and data['auto'] == 1):
 				hours, soc = leaf_status(now=now, utc=utc_offset)
 				if hours > 0:
 					schedule, remaining_hours = get_chargeSchedule(hour_to_charged=hours, nordpool_data=data['nordpool'], now=now, pattern='auto' )
@@ -127,7 +132,7 @@ while True:
 			# The response from webserver have been changed to fast_smart,
 			# or the car has been connected and is in fast_smart mode
 			# and was not cached in previous statement
-			elif (response['fast_smart'] == 1 and data['fast_smart'] != 1 ) or (data['connected'] == 0 and connected == 1 and data['fast_smart'] == 1 ):
+			elif (response['fast_smart'] == 1 and data['fast_smart'] != 1 ) or (data['connected'] == "NOT_CONNECTED" and connected == "CONNECTED" and data['fast_smart'] == 1 ):
 				hours = response['hours']
 				schedule, remaining_hours = get_chargeSchedule(hour_to_charged=hours, nordpool_data=data['nordpool'], now=now, pattern='fast_smart')
 				data['schedule'] = schedule
@@ -137,7 +142,7 @@ while True:
 			# The response from webserver have been changed to on,
 			# or the car has been connected and is in on mode 'on'
 			# and was not cached in previous statement
-			elif (response['on']== 1 and data['on'] != 1) or (data['connected'] == 0 and connected == 1 ):
+			elif (response['on']== 1 and data['on'] != 1) or (data['connected'] == "NOT_CONNECTED" and connected == "CONNECTED" ):
 				charge = True
 				schedule,	remaining_hours = get_chargeSchedule(hour_to_charged=16, nordpool_data=data['nordpool'], now=now, pattern='on' )
 				data['schedule'] = schedule
@@ -164,18 +169,19 @@ while True:
 				data['remaining_hours'] = remaining_hours
 				data['charge'] = charge
 
-			if connected == 3:
-				# TODO Implement something that change:
-				#  auto to on, on server
-				# data['auto'] = 1
+			# if connected == 3:
+			# 	# TODO Implement something that change:
+			# 	#  auto to on, on server
+			# 	# data['auto'] = 1
 				
-				charge = False
-				schedule = pd.DataFrame()
-				remaining_hours = 0
-				data['schedule'] = schedule
-				data['remaining_hours'] = remaining_hours
-				data['charge'] = charge
-			elif connected == 2:
+			# 	charge = False
+			# 	schedule = pd.DataFrame()
+			# 	remaining_hours = 0
+			# 	data['schedule'] = schedule
+			# 	data['remaining_hours'] = remaining_hours
+			# 	data['charge'] = charge
+
+			elif connected == "CHARGING":
 				data['charging'] = True
 			elif connected == None:
 				time.sleep(time_to_sleep)
@@ -202,8 +208,7 @@ while True:
 			charge = True
 			data['charge'] = charge
 
-	elif connected == 0:
-		
+	else:
 		charge = False
 		schedule = pd.DataFrame()
 		remaining_hours = 0
@@ -219,7 +224,7 @@ while True:
 		time.sleep(4)
 		connected, available = get_Garo_status()
 
-
+	# If the schedule is out of date, delete it
 	if not data['schedule'].empty:
 		if datetime.timedelta(hours=1) + data['schedule']['TimeStamp'].iloc[-1] < now:
 			schedule = pd.DataFrame()
