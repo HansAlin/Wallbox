@@ -63,7 +63,6 @@ def get_Garo_status():
 
 		print(f"From Garo: {data['connector']} and {data['mode']}", end=" ")
 		return data['connector'], data['mode']
-
 	except:
 		print("Not able to contact wallbox!", end=" ")
 		return None, None

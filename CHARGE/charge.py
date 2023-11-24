@@ -5,6 +5,9 @@ import requests
 import pytz
 from bs4 import BeautifulSoup
 import matplotlib.pyplot as plt	
+
+from matplotlib.dates import DateFormatter
+
 from GARO.garo import on_off_Garo
 from CONFIG.config import low_temp_url, server_url, tz_region
 
@@ -96,13 +99,18 @@ def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern):
 	return pd.DataFrame(charge_schedule['TimeStamp']), remaining_hours
 
 def plot_data_schedule(charge_schedule, noorpool_data, now):
+	hh = DateFormatter('%H')
 	x1 = noorpool_data['TimeStamp'].values
 	y1 = noorpool_data['value'].values
-	plt.scatter(x1, y1 , color='blue')
+	fig, ax = plt.subplots()
+	ax.xaxis.set_major_formatter(hh)
+	ax.scatter(x1, y1 , color='blue')
 	x2 = charge_schedule['TimeStamp'].values
 	y2 = charge_schedule['value'].values
-	plt.scatter(x2, y2, color='red')
-	plt.savefig(f'data/plots/plot_{now.year}-{now.month}-{now.day}_{now.hour}:{now.minute}.png')
+	ax.scatter(x2, y2, color='red')
+	fig.savefig(f'data/plots/plot_{now.year}-{now.month}-{now.day}_{now.hour}:{now.minute}.png')
+	
+	print("Test")
 	#plt.show()
 
 
@@ -160,7 +168,9 @@ def get_button_state():
 					data = None
 	
 	print("Web respons:", end=" ")
-	if data['auto'] == 1:
+	if data == None:
+		print("None", end=" ")	
+	elif data['auto'] == 1:
 		print("Auto = 1", end=" ")
 	elif data['fast_smart'] == 1:
 		print("Fast smart = 1", end=" ")

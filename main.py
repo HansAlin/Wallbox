@@ -69,10 +69,11 @@ while True:
 		
 	connected, available = get_Garo_status()
 	# Response options
-	# connected: "NOT_CONNECTED", "CONNECTED", "DISABLED", 'CHARGING_PAUSED':
+	# connected: "NOT_CONNECTED", "CONNECTED", "DISABLED", 'CHARGING_PAUSED', 'CHARGING_FINISHED':
 	# available: "ALWAYS_OFF", "ALWAYS_ON", "SCHEMA":
 	# TODO might need to implement something that takes care of long periods of 'CHARGING_PAUSED'
 		# All theses statements gives that the car is connected in some way!
+	# TODO change	data['connected'] != "CONNECTED" to data['connected'] == "NOT_CONNECTED"
 	
 	if connected != "NOT_CONNECTED":
 
@@ -110,7 +111,7 @@ while True:
 			###############################################	
 			# The response from webserver have been changed to auto,
 			# or the car has been connected			
-			elif (response['auto'] == 1 and data['auto'] != 1) or (data['connected'] == "NOT_CONNECTED" and connected == "CONNECTED" and data['auto'] == 1):
+			elif (response['auto'] == 1 and data['auto'] != 1) or (data['connected'] != "CONNECTED" and connected == "CONNECTED" and data['auto'] == 1):
 				hours, soc = leaf_status(now=now, utc=utc_offset)
 				if hours > 0:
 					schedule, remaining_hours = get_chargeSchedule(hour_to_charged=hours, nordpool_data=data['nordpool'], now=now, pattern='auto' )
@@ -132,7 +133,7 @@ while True:
 			# The response from webserver have been changed to fast_smart,
 			# or the car has been connected and is in fast_smart mode
 			# and was not cached in previous statement
-			elif (response['fast_smart'] == 1 and data['fast_smart'] != 1 ) or (data['connected'] == "NOT_CONNECTED" and connected == "CONNECTED" and data['fast_smart'] == 1 ):
+			elif (response['fast_smart'] == 1 and data['fast_smart'] != 1 ) or (data['connected'] != "CONNECTED" and connected == "CONNECTED" and data['fast_smart'] == 1 ):
 				hours = response['hours']
 				schedule, remaining_hours = get_chargeSchedule(hour_to_charged=hours, nordpool_data=data['nordpool'], now=now, pattern='fast_smart')
 				data['schedule'] = schedule
@@ -142,7 +143,7 @@ while True:
 			# The response from webserver have been changed to on,
 			# or the car has been connected and is in on mode 'on'
 			# and was not cached in previous statement
-			elif (response['on']== 1 and data['on'] != 1) or (data['connected'] == "NOT_CONNECTED" and connected == "CONNECTED" ):
+			elif (response['on']== 1 and data['on'] != 1) or (data['connected'] != "CONNECTED" and connected == "CONNECTED" ):
 				charge = True
 				schedule,	remaining_hours = get_chargeSchedule(hour_to_charged=16, nordpool_data=data['nordpool'], now=now, pattern='on' )
 				data['schedule'] = schedule
