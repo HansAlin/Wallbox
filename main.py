@@ -1,5 +1,6 @@
-
+import sys
 from selenium import webdriver
+import random
 # from selenium.webdriver.support.ui import Select
 # from selenium.webdriver.common.by import By
 # from selenium.webdriver.chrome.options import Options
@@ -34,6 +35,22 @@ Leafpy: Current url in auth.py is url = "https://gdcportalgw.its-mo.com/api_v210
             custom_sessionid = r.json()['VehicleInfoList']['vehicleInfo'][0]['custom_sessionid']
 	          VIN = r.json()['CustomerInfo']['VehicleInfo']['VIN']
 """
+if (args_count := len(sys.argv)) > 2:
+	print(f"No more than one argument expected, got {args_count - 1}")
+	print("Program in normal mode!")
+	test = False
+elif (args_count := len(sys.argv)) == 1:
+	print("Program in normal mode!")
+	test = False
+else:	
+	argument = sys.argv[1].lower()
+	if argument == "test":
+		print("Program in Test mode!")
+		test = True
+	else:
+		print("Program in normal mode!")
+		test = False
+			
 
 
 try:
@@ -66,15 +83,49 @@ while True:
 		data['nordpool'] = nordpool
 		data['last_down_load'] = last_down_load
 		data['new_down_load'] = new_download
-		
-	connected, available = get_Garo_status()
+	if not test:	
+		connected, available = get_Garo_status()
 	# Response options
-	# connected: "NOT_CONNECTED", "CONNECTED", "DISABLED", 'CHARGING_PAUSED', 'CHARGING_FINISHED':
+	# connected: "NOT_CONNECTED", "CONNECTED", "DISABLED", 'CHARGING_PAUSED', 'CHARGING_FINISHED', 'CHARGING':
 	# available: "ALWAYS_OFF", "ALWAYS_ON", "SCHEMA":
 	# TODO might need to implement something that takes care of long periods of 'CHARGING_PAUSED'
 		# All theses statements gives that the car is connected in some way!
 	# TODO change	data['connected'] != "CONNECTED" to data['connected'] == "NOT_CONNECTED"
-	
+
+	#####################################################################################################
+	## TODO just for testing
+	#####################################################################################################
+	if test:
+		# b = input("Breake? (y/n)")
+		# if b.lower() == 'y':
+		# 	break 
+		connections = ["NOT_CONNECTED", "CONNECTED"] #, "DISABLED", 'CHARGING_PAUSED', 'CHARGING_FINISHED', 'CHARGING']
+		get_index = random.randrange(len(connections))
+		connected = connections[get_index]
+		print()
+		print()
+		print(f"connected: {connected}")
+		get_index = random.randrange(len(connections))
+		data['connected'] = connections[get_index]
+		print(f"data['connected'] = {data['connected']}")
+		availables = ["ALWAYS_OFF", "ALWAYS_ON", "SCHEMA"]
+		get_index = random.randrange(len(availables))
+		available = availables[get_index]
+		print(f"available = {available}")
+		remove	= random.randint(0,1)
+		if remove:
+			data['schedule'] = pd.DataFrame()
+			print("Schedule: False")
+		elif not data['schedule'].empty:
+			print("Schedule: True")	
+		else:
+			print("Schedule: False")	
+		print(f"data['charge'] = {data['charge']}")
+		
+		time_to_sleep = 5
+#########################################################################################################
+##########################################################################################################
+
 	if connected != "NOT_CONNECTED":
 
 		if not lowTemp():
@@ -101,18 +152,20 @@ while True:
 				if  not data['schedule'].empty:
 					charge = ifCharge(charge_schedule=data['schedule'], now=now)
 				else:
-					charge = data['charge']
-
-				if charge == data['charge']:
-					status_quo = True
-					
+					charge = False
+				
 				data['charge'] = charge
 
 			###############################################	
 			# The response from webserver have been changed to auto,
 			# or the car has been connected			
-			elif (response['auto'] == 1 and data['auto'] != 1) or (data['connected'] != "CONNECTED" and connected == "CONNECTED" and data['auto'] == 1):
-				hours, soc = leaf_status(now=now, utc=utc_offset)
+			elif (response['auto'] == 1 and data['auto'] != 1) or (data['connected'] == "NOT_CONNECTED" and connected == "CONNECTED" and data['auto'] == 1):
+				# TODO remove afters testing
+				if not test:
+					hours, soc = leaf_status(now=now, utc=utc_offset)
+				else:
+					hours	= random.randint(0,6)
+					print(f'Test hours to charge: {hours}')
 				if hours > 0:
 					schedule, remaining_hours = get_chargeSchedule(hour_to_charged=hours, nordpool_data=data['nordpool'], now=now, pattern='auto' )
 				elif hours == 0:
@@ -133,7 +186,7 @@ while True:
 			# The response from webserver have been changed to fast_smart,
 			# or the car has been connected and is in fast_smart mode
 			# and was not cached in previous statement
-			elif (response['fast_smart'] == 1 and data['fast_smart'] != 1 ) or (data['connected'] != "CONNECTED" and connected == "CONNECTED" and data['fast_smart'] == 1 ):
+			elif (response['fast_smart'] == 1 and data['fast_smart'] != 1 ) or (data['connected'] == "NOT_CONNECTED" and connected == "CONNECTED" and data['fast_smart'] == 1 ):
 				hours = response['hours']
 				schedule, remaining_hours = get_chargeSchedule(hour_to_charged=hours, nordpool_data=data['nordpool'], now=now, pattern='fast_smart')
 				data['schedule'] = schedule
@@ -143,7 +196,7 @@ while True:
 			# The response from webserver have been changed to on,
 			# or the car has been connected and is in on mode 'on'
 			# and was not cached in previous statement
-			elif (response['on']== 1 and data['on'] != 1) or (data['connected'] != "CONNECTED" and connected == "CONNECTED" ):
+			elif (response['on']== 1 and data['on'] != 1) or (data['connected'] == "NOT_CONNECTED" and connected == "CONNECTED" ):
 				charge = True
 				schedule,	remaining_hours = get_chargeSchedule(hour_to_charged=16, nordpool_data=data['nordpool'], now=now, pattern='on' )
 				data['schedule'] = schedule
@@ -189,7 +242,7 @@ while True:
 				print()
 				continue	
 
-			if not status_quo and not data['schedule'].empty:
+			if not data['schedule'].empty:
 				charge = ifCharge(charge_schedule=data['schedule'], now=now)
 				data['charge'] = charge
 		
@@ -218,7 +271,10 @@ while True:
 		data['charge'] = charge
 
 	
-	
+	if test:
+		print()
+		print(f"charge = {charge}")
+		print(f"data['charging'] = {data['charging']}")
 	charging = changeChargeStatusGaro(charging=data['charging'], charge=data['charge'], now=now, available=available)
 	if charging != data['charging']:
 		print("Charging status is changing!", end=" ")

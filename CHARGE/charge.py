@@ -60,7 +60,7 @@ def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern):
 		# The reason for this is that the care take more current in the 
 		# beginning of the charging
 		prior_fraction = 0.8
-		sub_hours = int(np.floor(hour_to_charged*prior_fraction))
+		sub_hours = int(np.ceil(hour_to_charged*prior_fraction))
 		sub_charge_schedule = df_sub.nsmallest(sub_hours, 'value')
 		sub_charge_schedule['TimeStamp'] = pd.to_datetime(sub_charge_schedule['TimeStamp'])
 		sub_charge_schedule = sub_charge_schedule.sort_values(by='TimeStamp')
@@ -109,8 +109,7 @@ def plot_data_schedule(charge_schedule, noorpool_data, now):
 	y2 = charge_schedule['value'].values
 	ax.scatter(x2, y2, color='red')
 	fig.savefig(f'data/plots/plot_{now.year}-{now.month}-{now.day}_{now.hour}:{now.minute}.png')
-	
-	print("Test")
+	print("Save fig!")
 	#plt.show()
 
 
@@ -126,10 +125,11 @@ def ifCharge(charge_schedule, now):
 	return False
 
 def changeChargeStatusGaro(charging, charge, now, available):
-	if charging and not available == "ALWAYS_ON":
-		charging = False
-
-	if charging == True and charge == False:
+	if available == "ALWAYS_ON" and charge:
+		print("Garo already on!", end=" ")
+	elif available != "ALWAYS_ON" and charge == False:
+		print("Garo already off!", end=" ")
+	elif available == "ALWAYS_ON" and charge == False:
 		turn_on_value = "0"
 		charging = False
 
@@ -141,7 +141,7 @@ def changeChargeStatusGaro(charging, charge, now, available):
 		else:
 			print(f"Garo turned off at: {now}", end=" ")
 
-	if charging == False and charge  == True:
+	elif available != "ALWAYS_ON" and charge  == True:
 		turn_on_value = "1"
 		charging = True
 
@@ -170,6 +170,7 @@ def get_button_state():
 	print("Web respons:", end=" ")
 	if data == None:
 		print("None", end=" ")	
+		return None
 	elif data['auto'] == 1:
 		print("Auto = 1", end=" ")
 	elif data['fast_smart'] == 1:
