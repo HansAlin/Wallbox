@@ -5,10 +5,11 @@ import requests
 import pytz
 from bs4 import BeautifulSoup
 import matplotlib.pyplot as plt	
+import time
 
 from matplotlib.dates import DateFormatter
 
-from GARO.garo import on_off_Garo
+from GARO.garo import on_off_Garo, get_Garo_status
 from CONFIG.config import low_temp_url, server_url, tz_region
 
 
@@ -124,7 +125,7 @@ def ifCharge(charge_schedule, now):
 
 	return False
 
-def changeChargeStatusGaro(charging, charge, now, available):
+def changeChargeStatusGaro(charging, charge, now, connected, available):
 	if available == "ALWAYS_ON" and charge:
 		print("Garo already on!", end=" ")
 	elif available != "ALWAYS_ON" and charge == False:
@@ -135,6 +136,8 @@ def changeChargeStatusGaro(charging, charge, now, available):
 
 
 		response = on_off_Garo(turn_on_value)
+		time.sleep(4)
+		connected, available = get_Garo_status()
 		if not response:
 			charging = True
 			print("Status not changed at GARO!", end=" ")
@@ -146,13 +149,15 @@ def changeChargeStatusGaro(charging, charge, now, available):
 		charging = True
 
 		response = on_off_Garo(turn_on_value)
+		time.sleep(4)
+		connected, available = get_Garo_status()
 		if not response:
 			charging = False
 			print("Status not changed at GARO!", end=" ")
 		else:
 			print(f"Garo turned on at: {now}", end=" ")
 
-	return charging
+	return charging, connected, available
 
 def get_button_state():
 

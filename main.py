@@ -275,11 +275,9 @@ while True:
 		print()
 		print(f"charge = {charge}")
 		print(f"data['charging'] = {data['charging']}")
-	charging = changeChargeStatusGaro(charging=data['charging'], charge=data['charge'], now=now, available=available)
-	if charging != data['charging']:
-		print("Charging status is changing!", end=" ")
-		time.sleep(4)
-		connected, available = get_Garo_status()
+	charging, connected, available = changeChargeStatusGaro(charging=data['charging'], charge=data['charge'], now=now, connected=connected, available=available)
+	
+		
 
 	# If the schedule is out of date, delete it
 	if not data['schedule'].empty:
