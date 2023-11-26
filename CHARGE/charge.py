@@ -60,26 +60,37 @@ def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern):
 		# firt 80 % of the hours
 		# The reason for this is that the care take more current in the 
 		# beginning of the charging
+		value_lim = 95
 		prior_fraction = 0.8
+		sub_schedule = True
 		sub_hours = int(np.ceil(hour_to_charged*prior_fraction))
+		df_sub_sub = df_sub[df_sub['value'] < value_lim]
+		available_hours = len(df_sub_sub.index)
+		if available_hours < sub_hours:
+			sub_hours = available_hours	
+			sub_schedule = False
 		sub_charge_schedule = df_sub.nsmallest(sub_hours, 'value')
 		sub_charge_schedule['TimeStamp'] = pd.to_datetime(sub_charge_schedule['TimeStamp'])
 		sub_charge_schedule = sub_charge_schedule.sort_values(by='TimeStamp')
 
-		# last 20 % of the hours
-		last_hours = hour_to_charged - sub_hours
-		# Last previus time  i schedule
-		last_sub_charge_hour = sub_charge_schedule['TimeStamp'].iloc[-1]
+		if sub_schedule:
+			# last 20 % of the hours
+			last_hours = hour_to_charged - sub_hours
+			# Last previus time  i schedule
+			last_sub_charge_hour = sub_charge_schedule['TimeStamp'].iloc[-1]
 		
-		df_sub_sub = df_sub[df_sub['TimeStamp'] > last_sub_charge_hour]
-		last_charge_schedule = df_sub_sub.nsmallest(last_hours, 'value')
-		length_of_schedule = len(last_charge_schedule.index)
-		if length_of_schedule < last_hours:
-			remaining_hours = remaining_hours + (last_hours - len(last_charge_schedule.index))
+			df_sub_sub = df_sub[df_sub['TimeStamp'] > last_sub_charge_hour]
+			last_charge_schedule = df_sub_sub.nsmallest(last_hours, 'value')
+			length_of_schedule = len(last_charge_schedule.index)
 
-		charge_schedule = pd.concat([sub_charge_schedule, last_charge_schedule])
-		charge_schedule = charge_schedule.sort_values(by='TimeStamp')
+			if length_of_schedule < last_hours:
+				remaining_hours = remaining_hours + (last_hours - len(last_charge_schedule.index))
 
+			charge_schedule = pd.concat([sub_charge_schedule, last_charge_schedule])
+			charge_schedule = charge_schedule.sort_values(by='TimeStamp')
+		else:
+			charge_schedule = sub_charge_schedule
+			remaining_hours = remaining_hours + (hour_to_charged - sub_hours)
 
 
 	elif pattern == 'on':
@@ -128,34 +139,35 @@ def ifCharge(charge_schedule, now):
 def changeChargeStatusGaro(charging, charge, now, connected, available):
 	if available == "ALWAYS_ON" and charge:
 		print("Garo already on!", end=" ")
+
 	elif available != "ALWAYS_ON" and charge == False:
 		print("Garo already off!", end=" ")
+
 	elif available == "ALWAYS_ON" and charge == False:
 		turn_on_value = "0"
 		charging = False
 
-
 		response = on_off_Garo(turn_on_value)
-		time.sleep(4)
-		connected, available = get_Garo_status()
 		if not response:
 			charging = True
 			print("Status not changed at GARO!", end=" ")
 		else:
-			print(f"Garo turned off at: {now}", end=" ")
+			print(f"Garo turned off!", end=" ")
+		time.sleep(4)
+		connected, available = get_Garo_status()	
 
 	elif available != "ALWAYS_ON" and charge  == True:
 		turn_on_value = "1"
 		charging = True
 
 		response = on_off_Garo(turn_on_value)
-		time.sleep(4)
-		connected, available = get_Garo_status()
 		if not response:
 			charging = False
 			print("Status not changed at GARO!", end=" ")
 		else:
-			print(f"Garo turned on at: {now}", end=" ")
+			print(f"Garo turned on!", end=" ")
+		time.sleep(4)
+		connected, available = get_Garo_status()	
 
 	return charging, connected, available
 

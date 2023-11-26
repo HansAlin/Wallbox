@@ -166,6 +166,7 @@ while True:
 				else:
 					hours	= random.randint(0,6)
 					print(f'Test hours to charge: {hours}')
+					
 				if hours > 0:
 					schedule, remaining_hours = get_chargeSchedule(hour_to_charged=hours, nordpool_data=data['nordpool'], now=now, pattern='auto' )
 				elif hours == 0:
@@ -207,7 +208,7 @@ while True:
 			# There is remaing hours to charge and new prices have occured
 			# and the car is in auto mode
 			# TODO this might be redundant
-			elif data['schedule'].empty and	response['auto'] == 1 and data['remaining_hours'] > 0 and data['new_download']:
+			elif data['schedule'].empty and	response['auto'] == 1 and data['remaining_hours'] > 0 and data['new_down_load']:
 				hours = remaining_hours
 				schedule, remaining_hours = get_chargeSchedule(hour_to_charged=hours, df=nordpool, now=now, pattern='auto' )
 				data['schedule'] = schedule
@@ -286,10 +287,10 @@ while True:
 			data['schedule'] = schedule
 
 	new_download = False   # After the first loop of new data it turns to old
-
+	data['new_down_load'] = new_download
 	data['connected'] = connected
 	data['charging'] = charging
-	new_download = False
+	
 	
 	with open('data/saved_data.pkl', 'wb') as f:
 			pickle.dump(data,f)
