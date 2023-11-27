@@ -74,7 +74,8 @@ while True:
 
 	# If it is more than 24 h since last download, download!
 	 
-	if ( now - data['last_down_load'] > datetime.timedelta(hours=24)) or (data['nordpool']['TimeStamp'].iloc[-1] - now < datetime.timedelta(hours=9)):
+	if ( now - data['last_down_load'] > datetime.timedelta(hours=24)) or \
+		(data['nordpool']['TimeStamp'].iloc[-1] - now < datetime.timedelta(hours=9)):
 
 		nordpool = getDataNordPool(utc_offset=utc_offset, now=now, prev_data=data['nordpool'])
 		
@@ -139,13 +140,20 @@ while True:
 
 			status_quo = False
 
-			###############################################
-			# If everthing was like last time
-			if response['auto'] == data['auto'] and response['fast_smart'] == data['fast_smart'] and response['on'] == data['on'] and response['hours'] == data['hours'] and connected == data['connected']:
+			#########################################################
+			# If everthing was like last time										 		#	
+			#########################################################
+			if response['auto'] == data['auto'] and \
+				 response['fast_smart'] == data['fast_smart'] and \
+				 response['on'] == data['on'] and \
+				 response['hours'] == data['hours'] and \
+				 connected == data['connected']:
 				
 				# If everything was like last time except that new data is downloaded from nordpool.
 				if data['new_down_load'] and data['remaining_hours'] > 0:
-					schedule, remaining_hours = get_chargeSchedule(hour_to_charged=data['remaining_hours'], nordpool_data=data['nordpool'], now=now, pattern='auto' )
+					schedule, remaining_hours = get_chargeSchedule(hour_to_charged=data['remaining_hours'], 
+																										nordpool_data=data['nordpool'], 
+																										now=now, pattern='auto' )
 					data['schedule'] = schedule
 					data['remaining_hours'] = remaining_hours
 
@@ -156,19 +164,24 @@ while True:
 				
 				data['charge'] = charge
 
-			###############################################	
-			# The response from webserver have been changed to auto,
-			# or the car has been connected			
-			elif (response['auto'] == 1 and data['auto'] != 1) or (data['connected'] == "NOT_CONNECTED" and connected == "CONNECTED" and data['auto'] == 1):
+			###############################################################	
+			# The response from webserver have been changed to auto,  		#
+			# or the car has been connected			                      		#
+			###############################################################
+			elif (response['auto'] == 1 and data['auto'] != 1) or \
+				  (data['connected'] == "NOT_CONNECTED" and connected != "NOT_CONNECTED" \
+					and data['auto'] == 1):
 				# TODO remove afters testing
 				if not test:
 					hours, soc = leaf_status(now=now, utc=utc_offset)
 				else:
 					hours	= random.randint(0,6)
 					print(f'Test hours to charge: {hours}')
-					
+
 				if hours > 0:
-					schedule, remaining_hours = get_chargeSchedule(hour_to_charged=hours, nordpool_data=data['nordpool'], now=now, pattern='auto' )
+					schedule, remaining_hours = get_chargeSchedule(hour_to_charged=hours, 
+																										nordpool_data=data['nordpool'], 
+																										now=now, pattern='auto' )
 				elif hours == 0:
 					schedule = pd.DataFrame()
 					remaining_hours = 0
@@ -183,39 +196,56 @@ while True:
 				data['schedule'] = schedule
 				data['remaining_hours'] = remaining_hours
 
-			###############################################
-			# The response from webserver have been changed to fast_smart,
-			# or the car has been connected and is in fast_smart mode
-			# and was not cached in previous statement
-			elif (response['fast_smart'] == 1 and data['fast_smart'] != 1 ) or (data['connected'] == "NOT_CONNECTED" and connected == "CONNECTED" and data['fast_smart'] == 1 ):
+			#################################################################
+			# The response from webserver have been changed to fast_smart,	#
+			# or the car has been connected and is in fast_smart mode 'on'	#		
+			# and was not cached in previous statement										  #
+			#################################################################
+			elif (response['fast_smart'] == 1 and data['fast_smart'] != 1 ) or \
+				(data['connected'] == "NOT_CONNECTED" and connected != "NOT_CONNECTED" \
+		 		and data['fast_smart'] == 1 ):
+
 				hours = response['hours']
-				schedule, remaining_hours = get_chargeSchedule(hour_to_charged=hours, nordpool_data=data['nordpool'], now=now, pattern='fast_smart')
+				schedule, remaining_hours = get_chargeSchedule(hour_to_charged=hours, 
+																									 nordpool_data=data['nordpool'], 
+																									 now=now, pattern='fast_smart')
 				data['schedule'] = schedule
 				data['remaining_hours'] = remaining_hours
 
-			###############################################
-			# The response from webserver have been changed to on,
-			# or the car has been connected and is in on mode 'on'
-			# and was not cached in previous statement
-			elif (response['on']== 1 and data['on'] != 1) or (data['connected'] == "NOT_CONNECTED" and connected == "CONNECTED" ):
+			#################################################################
+			# The response from webserver have been changed to on,					#
+			# or the car has been connected and is in on mode 'on'					#
+			# and was not cached in previous statement											#
+			#################################################################
+			elif (response['on']== 1 and data['on'] != 1) or \
+				(data['connected'] == "NOT_CONNECTED" and connected != "NOT_CONNECTED"):
+
 				charge = True
-				schedule,	remaining_hours = get_chargeSchedule(hour_to_charged=16, nordpool_data=data['nordpool'], now=now, pattern='on' )
+				schedule,	remaining_hours = get_chargeSchedule(hour_to_charged=16, 
+																									 nordpool_data=data['nordpool'], 
+																									 now=now, pattern='on' )
 				data['schedule'] = schedule
 				data['charge'] = charge
 				data['remaining_hours'] = remaining_hours
 
-			###############################################
-			# There is remaing hours to charge and new prices have occured
-			# and the car is in auto mode
-			# TODO this might be redundant
-			elif data['schedule'].empty and	response['auto'] == 1 and data['remaining_hours'] > 0 and data['new_down_load']:
+			#################################################################
+			# There is remaing hours to charge and new prices have occured 	#
+			# and the car is in auto mode																	 	#
+			# TODO this might be redundant																 	#
+			#################################################################	
+			elif data['schedule'].empty and	response['auto'] == 1 and \
+				data['remaining_hours'] > 0 and data['new_down_load']:
 				hours = remaining_hours
-				schedule, remaining_hours = get_chargeSchedule(hour_to_charged=hours, df=nordpool, now=now, pattern='auto' )
+				schedule, remaining_hours = get_chargeSchedule(hour_to_charged=hours, 
+																									 df=nordpool, 
+																									 now=now, 
+																									 pattern='auto' )
 				data['schedule'] = schedule
 				data['remaining_hours'] = remaining_hours
 
-			###############################################
-			# The response is off
+			#################################################################
+			# The response is off																						#
+			#################################################################	
 			elif response['auto'] == 0 and response['fast_smart'] == 0 and response['on']== 0:
 				schedule = pd.DataFrame()
 				remaining_hours = 0
@@ -246,8 +276,11 @@ while True:
 			if not data['schedule'].empty:
 				charge = ifCharge(charge_schedule=data['schedule'], now=now)
 				data['charge'] = charge
-		
-			if (response['on'] == 1 or response['fast_smart']) and data['schedule'].empty:
+
+			#################################################################
+			# Turn status to auto as default																#
+			#################################################################
+			if (response['on'] == 1 or response['fast_smart'] == 1) and data['schedule'].empty:
 				# TODO implement change button state on server to auto
 				print("Default auto!", end=" ")
 				_  = set_button_state({'auto':1,'fast_smart':0,'on':0})

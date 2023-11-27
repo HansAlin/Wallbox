@@ -60,7 +60,7 @@ def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern):
 		# firt 80 % of the hours
 		# The reason for this is that the care take more current in the 
 		# beginning of the charging
-		value_lim = 95
+		value_lim = 82
 		prior_fraction = 0.8
 		sub_schedule = True
 		sub_hours = int(np.ceil(hour_to_charged*prior_fraction))
