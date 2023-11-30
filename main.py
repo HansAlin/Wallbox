@@ -235,6 +235,7 @@ while True:
 			#################################################################	
 			elif data['schedule'].empty and	response['auto'] == 1 and \
 				data['remaining_hours'] > 0 and data['new_down_load']:
+				
 				hours = remaining_hours
 				schedule, remaining_hours = get_chargeSchedule(hour_to_charged=hours, 
 																									 df=nordpool, 
