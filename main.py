@@ -127,7 +127,7 @@ while True:
 #########################################################################################################
 ##########################################################################################################
 
-	if connected != "NOT_CONNECTED":
+	if connected != "NOT_CONNECTED" or connected != None:
 
 		if not lowTemp():
 			# Respons from webserver
@@ -235,7 +235,7 @@ while True:
 			#################################################################	
 			elif data['schedule'].empty and	response['auto'] == 1 and \
 				data['remaining_hours'] > 0 and data['new_down_load']:
-				
+
 				hours = remaining_hours
 				schedule, remaining_hours = get_chargeSchedule(hour_to_charged=hours, 
 																									 df=nordpool, 
@@ -310,7 +310,11 @@ while True:
 		print()
 		print(f"charge = {charge}")
 		print(f"data['charging'] = {data['charging']}")
-	charging, connected, available = changeChargeStatusGaro(charging=data['charging'], charge=data['charge'], now=now, connected=connected, available=available)
+	charging, connected, available = changeChargeStatusGaro(charging=data['charging'], 
+																												 charge=data['charge'], 
+																												 now=now, 
+																												 connected=connected, 
+																												 available=available)
 	
 		
 
