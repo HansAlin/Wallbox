@@ -84,8 +84,8 @@ while True:
 		data['nordpool'] = nordpool
 		data['last_down_load'] = last_down_load
 		data['new_down_load'] = new_download
-	if not test:	
-		connected, available = get_Garo_status()
+		
+	connected, available = get_Garo_status()
 	# Response options
 	# connected: "NOT_CONNECTED", "CONNECTED", "DISABLED", 'CHARGING_PAUSED', 'CHARGING_FINISHED', 'CHARGING':
 	# available: "ALWAYS_OFF", "ALWAYS_ON", "SCHEMA":
@@ -96,38 +96,38 @@ while True:
 	#####################################################################################################
 	## TODO just for testing
 	#####################################################################################################
-	if test:
-		# b = input("Breake? (y/n)")
-		# if b.lower() == 'y':
-		# 	break 
-		connections = ["NOT_CONNECTED", "CONNECTED"] #, "DISABLED", 'CHARGING_PAUSED', 'CHARGING_FINISHED', 'CHARGING']
-		get_index = random.randrange(len(connections))
-		connected = connections[get_index]
-		print()
-		print()
-		print(f"connected: {connected}")
-		get_index = random.randrange(len(connections))
-		data['connected'] = connections[get_index]
-		print(f"data['connected'] = {data['connected']}")
-		availables = ["ALWAYS_OFF", "ALWAYS_ON", "SCHEMA"]
-		get_index = random.randrange(len(availables))
-		available = availables[get_index]
-		print(f"available = {available}")
-		remove	= random.randint(0,1)
-		if remove:
-			data['schedule'] = pd.DataFrame()
-			print("Schedule: False")
-		elif not data['schedule'].empty:
-			print("Schedule: True")	
-		else:
-			print("Schedule: False")	
-		print(f"data['charge'] = {data['charge']}")
+	# if test:
+	# 	# b = input("Breake? (y/n)")
+	# 	# if b.lower() == 'y':
+	# 	# 	break 
+	# 	connections = ["NOT_CONNECTED", "CONNECTED"] #, "DISABLED", 'CHARGING_PAUSED', 'CHARGING_FINISHED', 'CHARGING']
+	# 	get_index = random.randrange(len(connections))
+	# 	connected = connections[get_index]
+	# 	print()
+	# 	print()
+	# 	print(f"connected: {connected}")
+	# 	get_index = random.randrange(len(connections))
+	# 	data['connected'] = connections[get_index]
+	# 	print(f"data['connected'] = {data['connected']}")
+	# 	availables = ["ALWAYS_OFF", "ALWAYS_ON", "SCHEMA"]
+	# 	get_index = random.randrange(len(availables))
+	# 	available = availables[get_index]
+	# 	print(f"available = {available}")
+	# 	remove	= random.randint(0,1)
+	# 	if remove:
+	# 		data['schedule'] = pd.DataFrame()
+	# 		print("Schedule: False")
+	# 	elif not data['schedule'].empty:
+	# 		print("Schedule: True")	
+	# 	else:
+	# 		print("Schedule: False")	
+	# 	print(f"data['charge'] = {data['charge']}")
 		
-		time_to_sleep = 5
+	# 	time_to_sleep = 5
 #########################################################################################################
 ##########################################################################################################
 
-	if connected != "NOT_CONNECTED" or connected != None:
+	if (connected != ("NOT_CONNECTED" or None)):
 
 		if not lowTemp():
 			# Respons from webserver
@@ -172,11 +172,11 @@ while True:
 				  (data['connected'] == "NOT_CONNECTED" and connected != "NOT_CONNECTED" \
 					and data['auto'] == 1):
 				# TODO remove afters testing
-				if not test:
-					hours, soc = leaf_status(now=now, utc=utc_offset)
-				else:
-					hours	= random.randint(0,6)
-					print(f'Test hours to charge: {hours}')
+				# if not test:
+				hours, soc = leaf_status(now=now, utc=utc_offset)
+				# else:
+				# 	hours	= random.randint(0,6)
+				# 	print(f'Test hours to charge: {hours}')
 
 				if hours > 0:
 					schedule, remaining_hours = get_chargeSchedule(hour_to_charged=hours, 
@@ -306,15 +306,16 @@ while True:
 		data['charge'] = charge
 
 	
-	if test:
-		print()
-		print(f"charge = {charge}")
-		print(f"data['charging'] = {data['charging']}")
+	# if test:
+	# 	print()
+	# 	print(f"charge = {charge}")
+	# 	print(f"data['charging'] = {data['charging']}")
 	charging, connected, available = changeChargeStatusGaro(charging=data['charging'], 
 																												 charge=data['charge'], 
 																												 now=now, 
 																												 connected=connected, 
-																												 available=available)
+																												 available=available,
+																												 test=test)
 	
 		
 

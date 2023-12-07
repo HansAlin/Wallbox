@@ -136,7 +136,7 @@ def ifCharge(charge_schedule, now):
 
 	return False
 
-def changeChargeStatusGaro(charging, charge, now, connected, available):
+def changeChargeStatusGaro(charging, charge, now, connected, available, test):
 	if available == "ALWAYS_ON" and charge:
 		print("Garo already on!", end=" ")
 
@@ -147,7 +147,12 @@ def changeChargeStatusGaro(charging, charge, now, connected, available):
 		turn_on_value = "0"
 		charging = False
 
-		response = on_off_Garo(turn_on_value)
+		if test:
+			print("Test!", end=" ")
+			response = False
+		else:	
+			response = on_off_Garo(turn_on_value)
+
 		if not response:
 			charging = True
 			print("Status not changed at GARO!", end=" ")
@@ -160,7 +165,11 @@ def changeChargeStatusGaro(charging, charge, now, connected, available):
 		turn_on_value = "1"
 		charging = True
 
-		response = on_off_Garo(turn_on_value)
+		if test:
+			print("Test!", end=" ")
+			response = False
+		else:	
+			response = on_off_Garo(turn_on_value)
 		if not response:
 			charging = False
 			print("Status not changed at GARO!", end=" ")
