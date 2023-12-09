@@ -64,6 +64,10 @@ time_to_sleep = 120  # It is needed because asking GARO to often generates probl
 print("Start or restart")
 now, utc_offset = get_now()
 print()
+
+# TODO remove after testing
+data['full'] = 0
+
 while True:
 
 	now, utc_offset = get_now()
@@ -75,7 +79,8 @@ while True:
 	# If it is more than 24 h since last download, download!
 	 
 	if ( now - data['last_down_load'] > datetime.timedelta(hours=24)) or \
-		(data['nordpool']['TimeStamp'].iloc[-1] - now < datetime.timedelta(hours=9)):
+		(data['nordpool']['TimeStamp'].iloc[-1] - now < datetime.timedelta(hours=9)) or \
+			(now - data['nordpool']['TimeStamp'].iloc[0] < datetime.timedelta(hours=0)) :
 
 		nordpool = getDataNordPool(utc_offset=utc_offset, now=now, prev_data=data['nordpool'])
 		
@@ -144,6 +149,7 @@ while True:
 			# If everthing was like last time										 		#	
 			#########################################################
 			if response['auto'] == data['auto'] and \
+				 response['full'] == data['full'] and \
 				 response['fast_smart'] == data['fast_smart'] and \
 				 response['on'] == data['on'] and \
 				 response['hours'] == data['hours'] and \
@@ -164,7 +170,7 @@ while True:
 				
 				data['charge'] = charge
 
-			###############################################################	
+			######################   AUTO         #########################	
 			# The response from webserver have been changed to auto,  		#
 			# or the car has been connected			                      		#
 			###############################################################
@@ -196,7 +202,7 @@ while True:
 				data['schedule'] = schedule
 				data['remaining_hours'] = remaining_hours
 
-			#################################################################
+			##################     FAST SMART       #########################
 			# The response from webserver have been changed to fast_smart,	#
 			# or the car has been connected and is in fast_smart mode 'on'	#		
 			# and was not cached in previous statement										  #
@@ -212,13 +218,14 @@ while True:
 				data['schedule'] = schedule
 				data['remaining_hours'] = remaining_hours
 
-			#################################################################
+			#####################      ON          ##########################
 			# The response from webserver have been changed to on,					#
 			# or the car has been connected and is in on mode 'on'					#
 			# and was not cached in previous statement											#
 			#################################################################
 			elif (response['on']== 1 and data['on'] != 1) or \
-				(data['connected'] == "NOT_CONNECTED" and connected != "NOT_CONNECTED"):
+				(data['connected'] == "NOT_CONNECTED" and connected != "NOT_CONNECTED" \
+		 		and data['on'] == 1):
 
 				charge = True
 				schedule,	remaining_hours = get_chargeSchedule(hour_to_charged=16, 
@@ -227,6 +234,41 @@ while True:
 				data['schedule'] = schedule
 				data['charge'] = charge
 				data['remaining_hours'] = remaining_hours
+
+			######################      FULL     ############################
+			# The response from webserver have been changed to full,				#
+			# or the car has been connected and is in 'full' mode						#
+			# and was not cached in previous statement											#
+			#################################################################
+			elif (response['full'] == 1 and data['full'] != 1) or \
+				(data['connected'] == "NOT_CONNECTED" and connected != "NOT_CONNECTED" \
+		 		and data['full'] == 1):
+
+				hours, soc = leaf_status(now=now, utc=utc_offset)
+
+				if hours > 0:
+					schedule, remaining_hours = get_chargeSchedule(hour_to_charged=hours, 
+																										nordpool_data=data['nordpool'], 
+																										now=now, 
+																										pattern='full', 
+																										set_time=response['set_time'] )
+				elif hours == 0:
+					schedule = pd.DataFrame()
+					remaining_hours = 0
+					charge = False
+					data['charge'] = charge
+				else:
+					with open('data/saved_data.pkl', 'wb') as f:
+						pickle.dump(data,f)
+					time.sleep(time_to_sleep)
+					continue
+
+				data['schedule'] = schedule
+				data['remaining_hours'] = remaining_hours
+
+
+
+
 
 			#################################################################
 			# There is remaing hours to charge and new prices have occured 	#
@@ -281,12 +323,13 @@ while True:
 			#################################################################
 			# Turn status to auto as default																#
 			#################################################################
-			if (response['on'] == 1 or response['fast_smart'] == 1) and data['schedule'].empty:
+			if (response['on'] == 1 or response['full'] or response['fast_smart'] == 1) and data['schedule'].empty and remaining_hours != 0:
 				# TODO implement change button state on server to auto
 				print("Default auto!", end=" ")
 				_  = set_button_state({'auto':1,'fast_smart':0,'on':0})
 
 			data['auto'] = response['auto']
+			data['full'] = response['full']
 			data['fast_smart'] = response['fast_smart']
 			data['on'] = response['on']
 			data['hours'] = response['hours']

@@ -13,7 +13,7 @@ from GARO.garo import on_off_Garo, get_Garo_status
 from CONFIG.config import low_temp_url, server_url, tz_region
 
 
-def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern):
+def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern, set_time=None):
 	"""
 	This function creates a charging schedule based on data from nordpool (nordpool_data)
 	Arguments:
@@ -91,6 +91,28 @@ def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern):
 		else:
 			charge_schedule = sub_charge_schedule
 			remaining_hours = remaining_hours + (hour_to_charged - sub_hours)
+
+	elif pattern == 'full':
+		if set_time == None:
+			next_hour = (now.hour + 12) % 24
+		else:	
+			next_hour = set_time
+		next_day = next_datetime(now, next_hour)
+		next_day = next_day.replace(minute=0, second=0, microsecond=0 )
+
+		if next_day - now > datetime.timedelta(hours=hour_to_charged):
+			df_sub_sub = df_sub[df_sub['TimeStamp'] < next_day]
+			charge_schedule = df_sub_sub.nsmallest(hour_to_charged, 'value')
+			charge_schedule['TimeStamp'] = pd.to_datetime(charge_schedule['TimeStamp'])
+			charge_schedule = charge_schedule.sort_values(by='TimeStamp')
+		else:
+			df_sub_sub = df_sub[df_sub['TimeStamp'] < now + datetime.timedelta(hours=hour_to_charged)]
+			charge_schedule = df_sub_sub.nsmallest(hour_to_charged, 'value')
+			charge_schedule['TimeStamp'] = pd.to_datetime(charge_schedule['TimeStamp'])
+			charge_schedule = charge_schedule.sort_values(by='TimeStamp')
+
+
+
 
 
 	elif pattern == 'on':
@@ -203,6 +225,8 @@ def get_button_state():
 		print("Fast smart = 1", end=" ")
 	elif data['on'] == 1:
 		print("On = 1", end=" ")	
+	elif data['full'] == 1:
+		print("Full = 1", end=" ")	
 	else:
 		print("All = 0", end=" ")
 	print(f"Hours: {data['hours']}", end=" ")			
@@ -289,3 +313,9 @@ def connected_to_lan():
 					requests.Timeout) as exception:
 			print("Internet is off")
 			return False
+
+def next_datetime(current: datetime.datetime, hour: int, **kwargs):
+    repl = current.replace(hour=hour, **kwargs)
+    while repl <= current:
+        repl = repl + datetime.timedelta(days=1)
+    return repl
