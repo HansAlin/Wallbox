@@ -142,7 +142,10 @@ def plot_data_schedule(charge_schedule, noorpool_data, now):
 	x2 = charge_schedule['TimeStamp'].values
 	y2 = charge_schedule['value'].values
 	ax.scatter(x2, y2, color='red')
-	fig.savefig(f'data/plots/plot_{now.year}-{now.month}-{now.day}_{now.hour}:{now.minute}.png')
+	plot_path = f'data/plots/plot_{now.year}-{now.month}-{now.day}_{now.hour}:{now.minute}.png'
+	fig.savefig(plot_path)
+	fig.savefig('static/image.png')
+	send_image_to_server('static/image.png')
 	print("Save fig!")
 	#plt.show()
 
@@ -244,6 +247,19 @@ def set_button_state(state):
 	except:
 		print("Not able to contact server!")
 		return None
+
+def send_image_to_server(image_path):
+    try:
+        with open(image_path, 'rb') as img:
+            response = requests.post(server_url + '/upload_image', files={'image': img})
+        if response.status_code == 200:
+            print("Successfully uploaded image to server!")
+        else:
+            print("Could not upload image to server!")
+        return response.status_code
+    except:
+        print("Not able to contact server!")
+        return None
 
 def get_now(*args):
 	if args:

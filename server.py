@@ -1,13 +1,15 @@
 from flask import Flask, render_template, request, jsonify, redirect
 import datetime
 import time
+from werkzeug.utils import secure_filename
+import os
 
 
 auto_Sts = 1
 full_Sts = 0
 fast_smart_Sts = 0
 now_Sts = 0
-set_time = 0
+set_time = 8
 hours = 5
 app = Flask(__name__)
 
@@ -28,6 +30,7 @@ def index():
 			'on': now_Sts,
 			'hours':hours,
 			'set_time': set_time,
+			'image_filename': 'image.png'
 			}
 
 	return render_template('index.html',  **templateData)
@@ -173,6 +176,15 @@ def set_time_route():
 	set_time, _ = map(int, selected_time.split(':'))  # split the selected time into hours and minutes
 
 	return redirect('/')
+
+@app.route('/upload_image', methods=['POST'])
+def upload_image():
+    if 'image' not in request.files:
+        return "No image in request", 400
+    image = request.files['image']
+    filename = secure_filename(image.filename)
+    image.save(os.path.join('static', filename))
+    return '', 200
 
 if __name__ == '__main__':
 	app.run(debug=True, port=5000, host='0.0.0.0')

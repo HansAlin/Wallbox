@@ -27,7 +27,9 @@ def getDataNordPool(utc_offset, now, prev_data):
 			last_time_stamp_prev = prev_data['TimeStamp'].iloc[-1]
 
 			# Before new data have arrived
-			if now.hour < 14 or (now - prev_data['nordpool']['TimeStamp'].iloc[0] < datetime.timedelta(hours=0)):
+			# or if last time stamp from norpool is more than now
+			diff = (now - prev_data['TimeStamp'].iloc[0])
+			if now.hour < 14 or ( diff < datetime.timedelta(hours=0)):
 				new_data = get_price_from_date(now=now, utc_offset=utc_offset)
 			else:
 				new_data = get_price_spot(utc_offset)
