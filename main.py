@@ -15,7 +15,7 @@ import pytz
 import pickle
 from bs4 import BeautifulSoup
 from GARO.garo import get_Garo_status, on_off_Garo
-from LEAF.leaf import leaf_status
+from LEAF.leaf import leaf_status, start_climat_control, stop_climat_control
 from NordPool.nordPool import getDataNordPool
 from CHARGE.charge import get_chargeSchedule, ifCharge, changeChargeStatusGaro, get_button_state, get_now, lowTemp, creta_data_file, set_button_state, connected_to_lan
 
@@ -64,11 +64,13 @@ time_to_sleep = 120  # It is needed because asking GARO to often generates probl
 print("Start or restart")
 now, utc_offset = get_now()
 print()
-
+ac_timeout = now
 # TODO remove after testing
-data['full'] = 0
+data['ac'] = 0
 
 while True:
+	if test:
+		time_to_sleep = 5
 
 	now, utc_offset = get_now()
 
@@ -153,6 +155,7 @@ while True:
 				 response['fast_smart'] == data['fast_smart'] and \
 				 response['on'] == data['on'] and \
 				 response['hours'] == data['hours'] and \
+				 response['ac'] == data['ac'] and \
 				 connected == data['connected']:
 				
 				# If everything was like last time except that new data is downloaded from nordpool.
@@ -201,6 +204,7 @@ while True:
 
 				data['schedule'] = schedule
 				data['remaining_hours'] = remaining_hours
+				_ = set_button_state({'soc':soc})
 
 			##################     FAST SMART       #########################
 			# The response from webserver have been changed to fast_smart,	#
@@ -266,9 +270,7 @@ while True:
 				data['schedule'] = schedule
 				data['remaining_hours'] = remaining_hours
 
-
-
-
+				_ = set_button_state({'soc':soc})
 
 			#################################################################
 			# There is remaing hours to charge and new prices have occured 	#
@@ -297,18 +299,7 @@ while True:
 				data['remaining_hours'] = remaining_hours
 				data['charge'] = charge
 
-			# if connected == 3:
-			# 	# TODO Implement something that change:
-			# 	#  auto to on, on server
-			# 	# data['auto'] = 1
-				
-			# 	charge = False
-			# 	schedule = pd.DataFrame()
-			# 	remaining_hours = 0
-			# 	data['schedule'] = schedule
-			# 	data['remaining_hours'] = remaining_hours
-			# 	data['charge'] = charge
-
+			
 			elif connected == "CHARGING":
 				data['charging'] = True
 			elif connected == None:
@@ -316,23 +307,46 @@ while True:
 				print()
 				continue	
 
+			####################     CLIMATE CONTROLL    ####################
+			# The response from webserver have been changed to ac,					#
+			#################################################################
+			if (response['ac'] != data['ac'] and \
+						connected != "NOT_CONNECTED"):	
+				if response['ac'] == 1:
+					_ = start_climat_control(test=test)
+					data['ac'] = 1
+					ac_timeout = now + datetime.timedelta(minutes=59)
+				else:	
+					stop_climat_control(test=test)
+
+					data['ac'] = 0
+
+			if now > ac_timeout and data['ac'] == 1:
+				stop_climat_control(test=test)
+				data['ac'] = 0		
+
 			if not data['schedule'].empty:
 				charge = ifCharge(charge_schedule=data['schedule'], now=now)
 				data['charge'] = charge
 
+
 			#################################################################
 			# Turn status to auto as default																#
 			#################################################################
-			if (response['on'] == 1 or response['full'] or response['fast_smart'] == 1) and data['schedule'].empty and remaining_hours != 0:
-				# TODO implement change button state on server to auto
+			if (response['on'] == 1 or \
+			 		response['full'] == 1 or \
+					response['fast_smart'] == 1) and \
+						data['schedule'].empty and remaining_hours == 0:
+				
 				print("Default auto!", end=" ")
-				_  = set_button_state({'auto':1,'fast_smart':0,'on':0})
+				_  = set_button_state({'auto':1,'fast_smart':0,'on':0, 'full':0})
 
 			data['auto'] = response['auto']
 			data['full'] = response['full']
 			data['fast_smart'] = response['fast_smart']
 			data['on'] = response['on']
 			data['hours'] = response['hours']
+			data['connected'] = connected
 
 		# if low temp
 		else:
@@ -340,10 +354,23 @@ while True:
 			charge = True
 			data['charge'] = charge
 
-	else:
+
+	###################   WHEN CAR IS DISSCONNECTED   ###################
+	#																																		#
+	##################################################################### 	
+	elif connected == "NOT_CONNECTED"  and data['connected'] != "NOT_CONNECTED":
 		charge = False
 		schedule = pd.DataFrame()
 		remaining_hours = 0
+		if response['ac'] == 1:
+			stop_climat_control(test=test)
+			data['ac'] = 0
+		print("Default auto!", end=" ")
+		data['auto'] = 1
+		data['full'] = 0
+		data['fast_smart'] = 0
+		data['on'] = 0
+
 		data['schedule'] = schedule
 		data['remaining_hours'] = remaining_hours
 		data['charge'] = charge
@@ -367,6 +394,9 @@ while True:
 		if datetime.timedelta(hours=1) + data['schedule']['TimeStamp'].iloc[-1] < now:
 			schedule = pd.DataFrame()
 			data['schedule'] = schedule
+			hours, soc = leaf_status(now=now, utc=utc_offset)
+			_ = set_button_state({'soc':soc})
+
 
 	new_download = False   # After the first loop of new data it turns to old
 	data['new_down_load'] = new_download

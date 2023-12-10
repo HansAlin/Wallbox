@@ -11,6 +11,9 @@ fast_smart_Sts = 0
 now_Sts = 0
 set_time = 8
 hours = 5
+soc = 0
+ac = 0
+
 app = Flask(__name__)
 
 @app.route('/')
@@ -21,6 +24,8 @@ def index():
 	global full_Sts
 	global fast_smart_Sts
 	global now_Sts
+	global soc
+	global ac
 
 	templateData = {
 			'title' : 'Charger',
@@ -30,7 +35,9 @@ def index():
 			'on': now_Sts,
 			'hours':hours,
 			'set_time': set_time,
-			'image_filename': 'image.png'
+			'image_filename': 'image.png',
+			'soc': soc,
+			'ac': ac
 			}
 
 	return render_template('index.html',  **templateData)
@@ -43,6 +50,8 @@ def action(deviceName, action):
 	global now_Sts
 	global hours
 	global set_time
+	global soc
+	global ac
 
 
 	if deviceName == 'auto':
@@ -93,13 +102,34 @@ def action(deviceName, action):
 			print('Not  charging on demand')
 			now_Sts = 0
 
+	if deviceName == 'ac':
+		
+		if action == 'on':
+			print("Climate is on and mode to now!")
+			ac = 1
+			fast_smart_Sts = 0
+			full_Sts = 0
+			auto_Sts = 0
+			now_Sts = 1
+
+		if action == 'off':
+			print('Climate is off and mode to auto!')
+			ac = 0
+			fast_smart_Sts = 0
+			full_Sts = 0
+			auto_Sts = 1
+			now_Sts = 0
+
+
 	templateData = {
 		'auto' : auto_Sts,
 		'full': full_Sts,
 		'fast_smart' : fast_smart_Sts,
 		'on' : now_Sts,
 		'hours' : hours,
-		'set_time': set_time
+		'set_time': set_time,
+		'soc': soc,
+		'ac': ac
 		}
 	
 	return render_template('index.html', **templateData)
@@ -113,6 +143,8 @@ def get_status():
 	global full_Sts
 	global hours
 	global set_time
+	global soc
+	global ac
 
 	templateData = {
 			'auto': auto_Sts,
@@ -121,6 +153,8 @@ def get_status():
 			'on': now_Sts,
 			'hours':hours,
 			'set_time': set_time,
+			'soc': soc,
+			'ac': ac
 				}
 	return jsonify(templateData)  # Convert the templateData dictionary to JSON and return it
 
@@ -142,8 +176,12 @@ def set_state():
 	global now_Sts
 	global set_time
 	global hours
+	global soc
+	global ac
 
 	data = request.get_json()
+	print(data)
+	print("Hej")
 	if data:
 		if 'auto' in data:
 			auto_Sts = data['auto']
@@ -157,6 +195,10 @@ def set_state():
 			hours = data['hours']	
 		if 'set_time' in data:
 			set_time = data['set_time']
+		if 'soc' in data:
+			soc = data['soc']	
+		if 'ac' in data:
+			ac = data['ac']	
 
 	templateData = {
 		'auto' : auto_Sts,
@@ -165,6 +207,8 @@ def set_state():
 		'on' : now_Sts,
 		'set_time': set_time,
 		'hours' : hours,
+		'soc': soc,
+		'ac': ac
 		}		
 	
 	return render_template('index.html', **templateData)

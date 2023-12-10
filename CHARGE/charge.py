@@ -141,7 +141,7 @@ def plot_data_schedule(charge_schedule, noorpool_data, now):
 	ax.scatter(x1, y1 , color='blue')
 	x2 = charge_schedule['TimeStamp'].values
 	y2 = charge_schedule['value'].values
-	ax.scatter(x2, y2, color='red')
+	ax.scatter(x2, y2, color='green')
 	plot_path = f'data/plots/plot_{now.year}-{now.month}-{now.day}_{now.hour}:{now.minute}.png'
 	fig.savefig(plot_path)
 	fig.savefig('static/image.png')
@@ -262,6 +262,10 @@ def send_image_to_server(image_path):
         return None
 
 def get_now(*args):
+	"""
+	This function get the current time and the utc offset
+	Returns: now, utc_offset
+	"""
 	if args:
 		now = args[0] + datetime.timedelta(minutes=20)
 		print(now, end=" ")

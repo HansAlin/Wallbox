@@ -63,4 +63,22 @@ def get_Garo_status():
 	except:
 		print("Not able to contact wallbox!", end=" ")
 		return None, None
+	
+def get_power_consumtion():
+	"""
+	This function check the power consumtion
+	Return: 
+	power : power consumtion in kW
+	"""
+	try:
+		url = url_garo + '/servlet/rest/chargebox/status?_=1'
+		response = requests.get(url=url, timeout=30)
+		data = response.json()
+
+		print(f"From Garo: {data['connector']} and {data['mode']}", end=" ")
+		return data['connector'], data['mode']
+	except:
+		print("Not able to contact wallbox!", end=" ")
+		return None, None
+
   
