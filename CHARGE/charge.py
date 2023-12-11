@@ -11,7 +11,7 @@ from matplotlib.dates import DateFormatter
 
 from GARO.garo import on_off_Garo, get_Garo_status
 from CONFIG.config import low_temp_url, server_url, tz_region
-from LEAF.leaf import leaf_status
+# from LEAF.leaf import leaf_status
 
 
 def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern, set_time=None):
@@ -157,7 +157,7 @@ def ifCharge(charge_schedule, now):
 
 	return False
 
-def changeChargeStatusGaro(charging, charge, now, connected, available, test, utc):
+def changeChargeStatusGaro(charging, charge, now, connected, available, test, utc, leaf_status):
 	if available == "ALWAYS_ON" and charge:
 		print("Garo already on!", end=" ")
 

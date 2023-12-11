@@ -386,7 +386,8 @@ while True:
 																												 connected=connected, 
 																												 available=available,
 																												 test=test,
-																												 utc=utc_offset)
+																												 utc=utc_offset,
+																												 leaf_status=leaf_status)
 	
 		
 
