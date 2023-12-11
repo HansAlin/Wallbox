@@ -11,6 +11,7 @@ from matplotlib.dates import DateFormatter
 
 from GARO.garo import on_off_Garo, get_Garo_status
 from CONFIG.config import low_temp_url, server_url, tz_region
+from LEAF.leaf import leaf_status
 
 
 def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern, set_time=None):
@@ -52,18 +53,17 @@ def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern, set_time=No
 		if hour_to_charged > hour_limit:
 			remaining_hours = (hour_to_charged - hour_limit)
 			hour_to_charged = hour_limit
-		#TODO an algorithm that change the number of remaining hours based
-		# on previous price from nordpool
-		# make the first 80 % ours chosen first and then the rest 
 
 		# Subsub charge_schedule
-		# firt 80 % of the hours
+		# 3 last hours charge slowly and is not prioritized
 		# The reason for this is that the care take more current in the 
-		# beginning of the charging
+		# beginning of the charging. Value limit is set to 82 euro/MWh
 		value_lim = 82
-		prior_fraction = 0.8
-		sub_schedule = True
-		sub_hours = int(np.ceil(hour_to_charged*prior_fraction))
+
+		sub_hours = hour_to_charged - 3
+		if sub_hours <= 0:
+			sub_hours = hour_to_charged
+		
 		df_sub_sub = df_sub[df_sub['value'] < value_lim]
 		available_hours = len(df_sub_sub.index)
 		if available_hours < sub_hours:
@@ -74,7 +74,7 @@ def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern, set_time=No
 		sub_charge_schedule = sub_charge_schedule.sort_values(by='TimeStamp')
 
 		if sub_schedule:
-			# last 20 % of the hours
+			# lasting hours
 			last_hours = hour_to_charged - sub_hours
 			# Last previus time  i schedule
 			last_sub_charge_hour = sub_charge_schedule['TimeStamp'].iloc[-1]
@@ -110,10 +110,6 @@ def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern, set_time=No
 			charge_schedule = df_sub_sub.nsmallest(hour_to_charged, 'value')
 			charge_schedule['TimeStamp'] = pd.to_datetime(charge_schedule['TimeStamp'])
 			charge_schedule = charge_schedule.sort_values(by='TimeStamp')
-
-
-
-
 
 	elif pattern == 'on':
 		#TODO test
@@ -161,7 +157,7 @@ def ifCharge(charge_schedule, now):
 
 	return False
 
-def changeChargeStatusGaro(charging, charge, now, connected, available, test):
+def changeChargeStatusGaro(charging, charge, now, connected, available, test, utc):
 	if available == "ALWAYS_ON" and charge:
 		print("Garo already on!", end=" ")
 
@@ -183,6 +179,8 @@ def changeChargeStatusGaro(charging, charge, now, connected, available, test):
 			print("Status not changed at GARO!", end=" ")
 		else:
 			print(f"Garo turned off!", end=" ")
+			h, soc = leaf_status(now, utc)
+			_ = set_button_state({'soc':soc})
 		time.sleep(4)
 		connected, available = get_Garo_status()	
 
@@ -200,6 +198,8 @@ def changeChargeStatusGaro(charging, charge, now, connected, available, test):
 			print("Status not changed at GARO!", end=" ")
 		else:
 			print(f"Garo turned on!", end=" ")
+			h, soc = leaf_status(now, utc)
+			_ = set_button_state({'soc':soc})
 		time.sleep(4)
 		connected, available = get_Garo_status()	
 
