@@ -14,7 +14,7 @@ from CONFIG.config import low_temp_url, server_url, tz_region
 # from LEAF.leaf import leaf_status
 
 
-def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern, set_time=None):
+def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern, set_time=None, value_lim=82):
 	"""
 	This function creates a charging schedule based on data from nordpool (nordpool_data)
 	Arguments:
@@ -49,6 +49,7 @@ def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern, set_time=No
 			charge_schedule = charge_schedule.sort_values(by='TimeStamp')
 
 	elif pattern == 'auto':
+		sub_schedule = True
 		hour_limit = 10
 		if hour_to_charged > hour_limit:
 			remaining_hours = (hour_to_charged - hour_limit)
@@ -58,7 +59,6 @@ def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern, set_time=No
 		# 3 last hours charge slowly and is not prioritized
 		# The reason for this is that the care take more current in the 
 		# beginning of the charging. Value limit is set to 82 euro/MWh
-		value_lim = 82
 
 		sub_hours = hour_to_charged - 3
 		if sub_hours <= 0:
@@ -106,7 +106,7 @@ def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern, set_time=No
 			charge_schedule['TimeStamp'] = pd.to_datetime(charge_schedule['TimeStamp'])
 			charge_schedule = charge_schedule.sort_values(by='TimeStamp')
 		else:
-			df_sub_sub = df_sub[df_sub['TimeStamp'] < now + datetime.timedelta(hours=hour_to_charged)]
+			df_sub_sub = df_sub[df_sub['TimeStamp'] < now + datetime.timedelta(hours=(hour_to_charged - 1))]
 			charge_schedule = df_sub_sub.nsmallest(hour_to_charged, 'value')
 			charge_schedule['TimeStamp'] = pd.to_datetime(charge_schedule['TimeStamp'])
 			charge_schedule = charge_schedule.sort_values(by='TimeStamp')

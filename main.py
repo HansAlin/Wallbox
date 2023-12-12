@@ -158,14 +158,6 @@ while True:
 				 response['ac'] == data['ac'] and \
 				 connected == data['connected']:
 				
-				# If everything was like last time except that new data is downloaded from nordpool.
-				if data['new_down_load'] and data['remaining_hours'] > 0:
-					schedule, remaining_hours = get_chargeSchedule(hour_to_charged=data['remaining_hours'], 
-																										nordpool_data=data['nordpool'], 
-																										now=now, pattern='auto' )
-					data['schedule'] = schedule
-					data['remaining_hours'] = remaining_hours
-
 				if  not data['schedule'].empty:
 					charge = ifCharge(charge_schedule=data['schedule'], now=now)
 				else:
@@ -330,6 +322,19 @@ while True:
 				data['charge'] = charge
 
 
+			####################     NEW DOWNLOAD      ######################
+			# If  new data is downloaded from nordpool. And there is still 	#
+			# remaining hours to charge or still schedule										#
+			#################################################################
+			if data['new_down_load'] and \
+							(data['remaining_hours'] > 0 or not data['schedule'].empty ):
+				remaining_hours = data['remaining_hours'] + len(data['schedule'].index)
+				schedule, remaining_hours = get_chargeSchedule(hour_to_charged=remaining_hours, 
+																									nordpool_data=data['nordpool'], 
+																									now=now, pattern='auto' )
+				data['schedule'] = schedule
+				data['remaining_hours'] = remaining_hours
+
 			#################################################################
 			# Turn status to auto as default																#
 			#################################################################
@@ -348,11 +353,34 @@ while True:
 			data['hours'] = response['hours']
 			data['connected'] = connected
 
-		# if low temp
+		###############      LOW TEMP			###############################
+		# If the temperature is low, charge the car!										#
+		#################################################################
 		else:
 			print("Low temp!", end=" ")
 			charge = True
 			data['charge'] = charge
+
+
+
+		###################   UPDATE CHARGE STATUS   ########################
+		#																																		#
+		#####################################################################
+		charging, connected, available = changeChargeStatusGaro(charging=data['charging'], 
+																												 charge=data['charge'], 
+																												 now=now, 
+																												 connected=connected, 
+																												 available=available,
+																												 test=test,
+																												 utc=utc_offset,
+																												 leaf_status=leaf_status)
+
+		# If the schedule is out of date, delete it
+		if not data['schedule'].empty:
+			if datetime.timedelta(hours=1) + data['schedule']['TimeStamp'].iloc[-1] < now:
+				schedule = pd.DataFrame()
+				data['schedule'] = schedule
+
 
 
 	###################   WHEN CAR IS DISSCONNECTED   ###################
@@ -367,37 +395,22 @@ while True:
 			data['ac'] = 0
 		print("Default auto!", end=" ")
 		data['auto'] = 1
-		data['full'] = 0
 		data['fast_smart'] = 0
 		data['on'] = 0
-
+		data['full'] = 0
+		
+		_  = set_button_state({'auto':data['auto'],
+												 'fast_smart':data['fast_smart'],
+												 'on':data['on'], 
+												 'full':data['full'],
+												 'ac':data['ac']})
+		
 		data['schedule'] = schedule
 		data['remaining_hours'] = remaining_hours
 		data['charge'] = charge
 
 	
-	# if test:
-	# 	print()
-	# 	print(f"charge = {charge}")
-	# 	print(f"data['charging'] = {data['charging']}")
-	charging, connected, available = changeChargeStatusGaro(charging=data['charging'], 
-																												 charge=data['charge'], 
-																												 now=now, 
-																												 connected=connected, 
-																												 available=available,
-																												 test=test,
-																												 utc=utc_offset,
-																												 leaf_status=leaf_status)
-	
-		
 
-	# If the schedule is out of date, delete it
-	if not data['schedule'].empty:
-		if datetime.timedelta(hours=1) + data['schedule']['TimeStamp'].iloc[-1] < now:
-			schedule = pd.DataFrame()
-			data['schedule'] = schedule
-			hours, soc = leaf_status(now=now, utc=utc_offset)
-			_ = set_button_state({'soc':soc})
 
 
 	new_download = False   # After the first loop of new data it turns to old
