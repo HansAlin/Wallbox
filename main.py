@@ -93,6 +93,9 @@ while True:
 		data['new_down_load'] = new_download
 		
 	connected, available = get_Garo_status()
+	if connected == None:
+		time.sleep(time_to_sleep)
+		continue
 	# Response options
 	# connected: "NOT_CONNECTED", "CONNECTED", "DISABLED", 'CHARGING_PAUSED', 'CHARGING_FINISHED', 'CHARGING':
 	# available: "ALWAYS_OFF", "ALWAYS_ON", "SCHEMA":
@@ -134,7 +137,7 @@ while True:
 #########################################################################################################
 ##########################################################################################################
 
-	if (connected != ("NOT_CONNECTED" or None)):
+	if (connected != "NOT_CONNECTED"):
 
 		if not lowTemp():
 			# Respons from webserver
@@ -416,6 +419,7 @@ while True:
 	new_download = False   # After the first loop of new data it turns to old
 	data['new_down_load'] = new_download
 	data['connected'] = connected
+	data['available'] = available
 	data['charging'] = charging
 	
 	
