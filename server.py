@@ -180,8 +180,7 @@ def set_state():
 	global ac
 
 	data = request.get_json()
-	print(data)
-	print("Hej")
+
 	if data:
 		if 'auto' in data:
 			auto_Sts = data['auto']

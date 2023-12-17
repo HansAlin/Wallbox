@@ -401,6 +401,7 @@ while True:
 		data['fast_smart'] = 0
 		data['on'] = 0
 		data['full'] = 0
+
 		
 		_  = set_button_state({'auto':data['auto'],
 												 'fast_smart':data['fast_smart'],
@@ -411,6 +412,15 @@ while True:
 		data['schedule'] = schedule
 		data['remaining_hours'] = remaining_hours
 		data['charge'] = charge
+		
+		charging, connected, available = changeChargeStatusGaro(charging=data['charging'], 
+																												 charge=data['charge'], 
+																												 now=now, 
+																												 connected=connected, 
+																												 available=available,
+																												 test=test,
+																												 utc=utc_offset,
+																												 leaf_status=leaf_status)
 
 	
 
