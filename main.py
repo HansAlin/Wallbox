@@ -387,9 +387,10 @@ while True:
 
 
 	###################   WHEN CAR IS DISSCONNECTED   ###################
-	#																																		#
+	#										or charging finished by car											#
 	##################################################################### 	
-	elif connected == "NOT_CONNECTED"  and data['connected'] != "NOT_CONNECTED":
+	elif connected == "NOT_CONNECTED"  and data['connected'] != "NOT_CONNECTED" or \
+				connected == "CHARGING_FINISHED" and data['connected'] != "CHARGING_FINISHED" :
 		charge = False
 		schedule = pd.DataFrame()
 		remaining_hours = 0
