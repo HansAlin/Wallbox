@@ -1,44 +1,4 @@
-<!-- <!DOCTYPE html>
-	<center>
-	<head>
-		<title>Charger</title>
-		<link rel="stylesheet" href="../static/style.css"
-	</head>
-	<body>
-		<h1>Charger</h1>
-		<h2> Satus and Control </h2>
-		<h3> Auto  ==> {{ auto }} ==>
-			 {% if auto == 1 %} 
-			<a href="/auto/off" class="button">TURN OFF</a>
-			{% else %}
-			<a href="/auto/on" class="button">TURN ON</a>
-			{% endif %}	
-		</h3>
-	
-		<h3> Fast Smart  ==> {{ fast_smart }} ==>
-                         {% if fast_smart == 1 %}
-                        <a href="/fast_smart/off" class="button">TURN OFF</a>
-                       {% else %}
-                        <a href="/fast_smart/on" class="button">TURN ON</a>
-                        {% endif %}
-                </h3>
 
-		<form action="/set_value" method="post">
-            		<label for="hours">Hours:</label>
-           		<input type="text" id="hours" name="hours" value={{hours}}>
-            		<input type="submit" value="Submit">
-       		</form>
-
-                <h3> Now  ==> {{ on  }} ==>
-                         {% if on  == 1 %}
-                        <a href="/now/off" class="button">TURN OFF</a>
-                        {% else %}
-                        <a href="/now/on" class="button">TURN ON</a>
-                        {% endif %}
-                </h3>
-	</body>	
-	</center>
-</html> -->
 
 <!DOCTYPE html>
 <html lang="en">
@@ -47,13 +7,57 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Charger Control</title>
     <link rel="stylesheet" href="../static/style.css">
+    
 </head>
 <body>
 	<center>
     <header>
         <h1>Charger Control</h1>
         <h2>Status and Control</h2>
+        <p>Battery status: {{soc}} %</p> 
     </header>
+   
+    
+    <section class="control-section">
+        <h3>Full Charge</h3>
+        {% if full == 1 %}
+            <h2> ON </h2>
+            <a href="/full/off" class="button">TURN OFF</a>
+        {% else %}
+        <h2> OFF </h2>
+            <a href="/full/on" class="button">TURN ON</a>
+        {% endif %}
+        
+        <p>Fully charged at: {{ '%02d' % set_time }}:00</p> 
+        <form action="/set_time" method="post">
+            <label for="set_time">Change time:</label>
+            <select id="set_time" name="set_time">
+                {% for i in range(24) %}
+                    {% if i == set_time %}
+                        <option value="{{ '%02d' % i }}:00" selected>{{ '%02d' % i }}:00</option>
+                    {% else %}
+                        <option value="{{ '%02d' % i }}:00">{{ '%02d' % i }}:00</option>
+                    {% endif %}
+                {% endfor %}
+            </select>
+            <button type="submit" class="button">Set Time</button>
+        </form>
+
+    </section>
+
+
+    <section class="control-section">
+        <h3>Climate control</h3>
+        {% if ac == 1 %}
+            <h2> ON </h2>
+            <a href="/ac/off" class="button">TURN OFF</a>
+        {% elif ac == 0 %}
+            <h2> OFF </h2>
+            <a href="/ac/on" class="button">TURN ON</a>
+        {% else %}
+            <h2> Error: Unexpected value for 'ac': {{ ac }} </h2>
+        {% endif %}
+    </section>
 
     <section class="control-section">
         <h3>Auto</h3>
@@ -65,7 +69,7 @@
             <a href="/auto/on" class="button">TURN ON</a>
         {% endif %}
     </section>
-
+    
     <section class="control-section">
         <h3>Fast Smart Charge within 12 hours</h3>
         {% if fast_smart == 1 %}
@@ -93,6 +97,7 @@
             <a href="/now/on" class="button">TURN ON</a>
         {% endif %}
     </section>
+    <img src="{{ url_for('static', filename='image.png') }}" alt="Description of image">
 	</center>
 </body>
 </html>

@@ -5,11 +5,16 @@ import requests
 import pytz
 from bs4 import BeautifulSoup
 import matplotlib.pyplot as plt	
-from GARO.garo import on_off_Garo
+import time
+
+from matplotlib.dates import DateFormatter
+
+from GARO.garo import on_off_Garo, get_Garo_status
 from CONFIG.config import low_temp_url, server_url, tz_region
+# from LEAF.leaf import leaf_status
 
 
-def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern):
+def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern, set_time=None, value_lim=82):
 	"""
 	This function creates a charging schedule based on data from nordpool (nordpool_data)
 	Arguments:
@@ -44,39 +49,67 @@ def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern):
 			charge_schedule = charge_schedule.sort_values(by='TimeStamp')
 
 	elif pattern == 'auto':
+		sub_schedule = True
 		hour_limit = 10
 		if hour_to_charged > hour_limit:
 			remaining_hours = (hour_to_charged - hour_limit)
 			hour_to_charged = hour_limit
-		#TODO an algorithm that change the number of remaining hours based
-		# on previous price from nordpool
-		# make the first 80 % ours chosen first and then the rest 
 
 		# Subsub charge_schedule
-		# firt 80 % of the hours
+		# 3 last hours charge slowly and is not prioritized
 		# The reason for this is that the care take more current in the 
-		# beginning of the charging
-		prior_fraction = 0.8
-		sub_hours = int(np.floor(hour_to_charged*prior_fraction))
+		# beginning of the charging. Value limit is set to 82 euro/MWh
+
+		sub_hours = hour_to_charged - 3
+		if sub_hours <= 0:
+			sub_hours = hour_to_charged
+		
+		df_sub_sub = df_sub[df_sub['value'] < value_lim]
+		available_hours = len(df_sub_sub.index)
+		if available_hours < sub_hours:
+			sub_hours = available_hours	
+			sub_schedule = False
 		sub_charge_schedule = df_sub.nsmallest(sub_hours, 'value')
 		sub_charge_schedule['TimeStamp'] = pd.to_datetime(sub_charge_schedule['TimeStamp'])
 		sub_charge_schedule = sub_charge_schedule.sort_values(by='TimeStamp')
 
-		# last 20 % of the hours
-		last_hours = hour_to_charged - sub_hours
-		# Last previus time  i schedule
-		last_sub_charge_hour = sub_charge_schedule['TimeStamp'].iloc[-1]
+		if sub_schedule:
+			# lasting hours
+			last_hours = hour_to_charged - sub_hours
+			# Last previus time  i schedule
+			last_sub_charge_hour = sub_charge_schedule['TimeStamp'].iloc[-1]
 		
-		df_sub_sub = df_sub[df_sub['TimeStamp'] > last_sub_charge_hour]
-		last_charge_schedule = df_sub_sub.nsmallest(last_hours, 'value')
-		length_of_schedule = len(last_charge_schedule.index)
-		if length_of_schedule < last_hours:
-			remaining_hours = remaining_hours + (last_hours - len(last_charge_schedule.index))
+			df_sub_sub = df_sub[df_sub['TimeStamp'] > last_sub_charge_hour]
+			last_charge_schedule = df_sub_sub.nsmallest(last_hours, 'value')
+			length_of_schedule = len(last_charge_schedule.index)
 
-		charge_schedule = pd.concat([sub_charge_schedule, last_charge_schedule])
-		charge_schedule = charge_schedule.sort_values(by='TimeStamp')
+			if length_of_schedule < last_hours:
+				remaining_hours = remaining_hours + (last_hours - len(last_charge_schedule.index))
 
+			charge_schedule = pd.concat([sub_charge_schedule, last_charge_schedule])
+			charge_schedule = charge_schedule.sort_values(by='TimeStamp')
+		else:
+			charge_schedule = sub_charge_schedule
+			remaining_hours = remaining_hours + (hour_to_charged - sub_hours)
 
+	elif pattern == 'full':
+		if set_time == None:
+			next_hour = (now.hour + 12) % 24
+		else:	
+			next_hour = set_time
+		next_day = next_datetime(now, next_hour)
+		next_day = next_day.replace(minute=0, second=0, microsecond=0 )
+
+		if next_day - now > datetime.timedelta(hours=hour_to_charged):
+			df_sub_sub = df_sub[df_sub['TimeStamp'] < next_day]
+			charge_schedule = df_sub_sub.nsmallest(hour_to_charged, 'value')
+			charge_schedule['TimeStamp'] = pd.to_datetime(charge_schedule['TimeStamp'])
+			charge_schedule = charge_schedule.sort_values(by='TimeStamp')
+		else:
+			df_sub_sub = df_sub[df_sub['TimeStamp'] < now + datetime.timedelta(hours=(hour_to_charged - 1))]
+			charge_schedule = df_sub_sub.nsmallest(hour_to_charged, 'value')
+			charge_schedule['TimeStamp'] = pd.to_datetime(charge_schedule['TimeStamp'])
+			charge_schedule = charge_schedule.sort_values(by='TimeStamp')
 
 	elif pattern == 'on':
 		#TODO test
@@ -96,13 +129,20 @@ def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern):
 	return pd.DataFrame(charge_schedule['TimeStamp']), remaining_hours
 
 def plot_data_schedule(charge_schedule, noorpool_data, now):
+	hh = DateFormatter('%H')
 	x1 = noorpool_data['TimeStamp'].values
 	y1 = noorpool_data['value'].values
-	plt.scatter(x1, y1 , color='blue')
+	fig, ax = plt.subplots()
+	ax.xaxis.set_major_formatter(hh)
+	ax.scatter(x1, y1 , color='blue')
 	x2 = charge_schedule['TimeStamp'].values
 	y2 = charge_schedule['value'].values
-	plt.scatter(x2, y2, color='red')
-	plt.savefig(f'data/plots/plot_{now.year}-{now.month}-{now.day}_{now.hour}:{now.minute}.png')
+	ax.scatter(x2, y2, color='green')
+	plot_path = f'data/plots/plot_{now.year}-{now.month}-{now.day}_{now.hour}:{now.minute}.png'
+	fig.savefig(plot_path)
+	fig.savefig('static/image.png')
+	send_image_to_server('static/image.png')
+	print("Save fig!")
 	#plt.show()
 
 
@@ -117,34 +157,53 @@ def ifCharge(charge_schedule, now):
 
 	return False
 
-def changeChargeStatusGaro(charging, charge, now, available):
-	if charging and not available:
-		charging = False
+def changeChargeStatusGaro(charging, charge, now, connected, available, test, utc, leaf_status):
+	if available == "ALWAYS_ON" and charge:
+		print("Garo already on!", end=" ")
 
-	if charging == True and charge == False:
+	elif available != "ALWAYS_ON" and charge == False:
+		print("Garo already off!", end=" ")
+
+	elif available == "ALWAYS_ON" and charge == False:
 		turn_on_value = "0"
 		charging = False
 
+		if test:
+			print("Test!", end=" ")
+			response = False
+		else:	
+			response = on_off_Garo(turn_on_value)
 
-		response = on_off_Garo(turn_on_value)
 		if not response:
 			charging = True
 			print("Status not changed at GARO!", end=" ")
 		else:
-			print(f"Garo turned off at: {now}", end=" ")
+			print(f"Garo turned off!", end=" ")
+			h, soc = leaf_status(now, utc)
+			_ = set_button_state({'soc':soc})
+		time.sleep(4)
+		connected, available = get_Garo_status()	
 
-	if charging == False and charge  == True:
+	elif available != "ALWAYS_ON" and charge  == True:
 		turn_on_value = "1"
 		charging = True
 
-		response = on_off_Garo(turn_on_value)
+		if test:
+			print("Test!", end=" ")
+			response = False
+		else:	
+			response = on_off_Garo(turn_on_value)
 		if not response:
 			charging = False
 			print("Status not changed at GARO!", end=" ")
 		else:
-			print(f"Garo turned on at: {now}", end=" ")
+			print(f"Garo turned on!", end=" ")
+			h, soc = leaf_status(now, utc)
+			_ = set_button_state({'soc':soc})
+		time.sleep(4)
+		connected, available = get_Garo_status()	
 
-	return charging
+	return charging, connected, available
 
 def get_button_state():
 
@@ -160,12 +219,17 @@ def get_button_state():
 					data = None
 	
 	print("Web respons:", end=" ")
-	if data['auto'] == 1:
+	if data == None:
+		print("None", end=" ")	
+		return None
+	elif data['auto'] == 1:
 		print("Auto = 1", end=" ")
 	elif data['fast_smart'] == 1:
 		print("Fast smart = 1", end=" ")
 	elif data['on'] == 1:
 		print("On = 1", end=" ")	
+	elif data['full'] == 1:
+		print("Full = 1", end=" ")	
 	else:
 		print("All = 0", end=" ")
 	print(f"Hours: {data['hours']}", end=" ")			
@@ -184,7 +248,24 @@ def set_button_state(state):
 		print("Not able to contact server!")
 		return None
 
+def send_image_to_server(image_path):
+    try:
+        with open(image_path, 'rb') as img:
+            response = requests.post(server_url + '/upload_image', files={'image': img})
+        if response.status_code == 200:
+            print("Successfully uploaded image to server!")
+        else:
+            print("Could not upload image to server!")
+        return response.status_code
+    except:
+        print("Not able to contact server!")
+        return None
+
 def get_now(*args):
+	"""
+	This function get the current time and the utc offset
+	Returns: now, utc_offset
+	"""
 	if args:
 		now = args[0] + datetime.timedelta(minutes=20)
 		print(now, end=" ")
@@ -252,3 +333,9 @@ def connected_to_lan():
 					requests.Timeout) as exception:
 			print("Internet is off")
 			return False
+
+def next_datetime(current: datetime.datetime, hour: int, **kwargs):
+    repl = current.replace(hour=hour, **kwargs)
+    while repl <= current:
+        repl = repl + datetime.timedelta(days=1)
+    return repl

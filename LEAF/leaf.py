@@ -2,6 +2,7 @@ from leafpy import Leaf
 from pprint import pprint
 import time
 from CONFIG.config import username, password, region_code
+from CHARGE.charge import set_button_state
 import datetime
 
 def leaf_status(now, utc):
@@ -45,3 +46,53 @@ def leaf_status(now, utc):
 	# leaf.BatteryRemoteChargingRequest()
 	print(f"Charging hours: {charging_hours}", end=" ")
 	return charging_hours, soc
+
+def start_climat_control(test=False):
+	count = 0
+	
+	try:
+		
+		while (count < 5 ):
+			if not test:
+				leaf = Leaf(username=username, password=password, region_code=region_code)
+				response = leaf.ACRemoteRequest()
+			else:
+				response = {'status':200}	
+			
+			if response['status'] == 200:
+				print("Climat control started ", end="")
+				_ = set_button_state({'auto':0,'fast_smart':0,'on':1, 'full':0})
+				return 1
+			else:
+				time.sleep(60)
+			count += 1	
+		print("Not possible to start climat control ", end="")	
+		return -1
+	except:
+		print("Not possible to start climat control ", end="")
+		return -1	
+
+def stop_climat_control(test=False):
+	count = 0
+	try:
+		while (count < 5 ):
+			if not test:
+				leaf = Leaf(username=username, password=password, region_code=region_code)
+				response = leaf.ACRemoteOffRequest()
+			else:
+				response = {'status':200}	
+
+			if response['status'] == 200:
+				print("Climat control stopped ", end="")
+				_ = set_button_state({'auto':1,'fast_smart':0,'on':0, 'full':0, 'ac':0})
+				return 1
+			else:
+				time.sleep(60)
+		
+		print("Not possible to stop climat control ", end="")
+
+		return -1
+		
+	except:
+		print("Not possible to stop climat control ", end="")
+		return -1	
