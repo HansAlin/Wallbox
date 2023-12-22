@@ -394,7 +394,7 @@ while True:
 		charge = False
 		schedule = pd.DataFrame()
 		remaining_hours = 0
-		if response['ac'] == 1:
+		if data['ac'] == 1:
 			stop_climat_control(test=test)
 			data['ac'] = 0
 		print("Default auto!", end=" ")
@@ -423,6 +423,7 @@ while True:
 																												 utc=utc_offset,
 																												 leaf_status=leaf_status)
 
+		data['charging'] = charging
 	
 
 
@@ -431,7 +432,7 @@ while True:
 	data['new_down_load'] = new_download
 	data['connected'] = connected
 	data['available'] = available
-	data['charging'] = charging
+	
 	
 	
 	with open('data/saved_data.pkl', 'wb') as f:
