@@ -62,6 +62,8 @@ def get_Garo_status():
 		data = response.json()
 
 		print(f"From Garo: {data['connector']} and {data['mode']}", end=" ")
+		if data['connector'] == 'CHARGING_PAUSED':
+			data['connector'] = "CONNECTED"
 		return data['connector'], data['mode']
 	except:
 		print("Not able to contact wallbox!", end=" ")
