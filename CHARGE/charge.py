@@ -284,7 +284,15 @@ def lowTemp():
 	"""
 	This function get the temperture from a local device
 	"""
+	temp = get_temp()
 
+	if temp < -20:
+		return True
+	else:
+		return False
+
+
+def get_temp():
 	try:
 		url = low_temp_url
 		page = requests.get(url=url, timeout=20)
@@ -292,13 +300,10 @@ def lowTemp():
 		data = soup.find_all("p")[0].text
 		temp = data.split(' ')[1]
 		temp = float(temp)
-
-		if temp < -20:
-			return True
-		else:
-			return False
+		return temp
 	except:
-		return False	
+		return None
+
 
 def creta_data_file():
 	data = {}

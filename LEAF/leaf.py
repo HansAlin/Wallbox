@@ -2,17 +2,21 @@ from leafpy import Leaf
 from pprint import pprint
 import time
 from CONFIG.config import username, password, region_code
-from CHARGE.charge import set_button_state
+from CHARGE.charge import set_button_state, get_temp
 import datetime
+import os
+import pandas as pd
 
 def leaf_status(now, utc):
 	count = 0
 	up_to_date = False
+	r = {}
 	try:
 		while(count < 5 and not up_to_date):
 			leaf = Leaf(username=username, password=password, region_code=region_code)
 			time.sleep(2)
 			r = leaf.BatteryStatusRecordsRequest()
+			
 			# Check if data is up to date
 			targetdate = r['BatteryStatusRecords']['TargetDate']
 			targetdate = datetime.datetime.strptime(targetdate, '%Y/%m/%d %H:%M') + datetime.timedelta(hours=utc)
@@ -21,7 +25,8 @@ def leaf_status(now, utc):
 			else:
 				time.sleep(60)	
 			count += 1 
-		pprint(r)	
+		pprint(r)
+		save_data(r)	
 	except:
 		return -1, -1
 	
@@ -96,3 +101,34 @@ def stop_climat_control(test=False):
 	except:
 		print("Not possible to stop climat control ", end="")
 		return -1	
+
+
+def save_data(data):
+	path = 'data/leaf_data.csv'
+	dir_path = os.path.dirname(path)
+	isExist = os.path.exists(path)
+	data_frame = {}
+	data_frame['SOC'] = data['BatteryStatusRecords']['BatteryStatus']['SOC']['Value']
+	data_frame['kwh'] = data['BatteryStatusRecords']['BatteryStatus']['BatteryRemainingAmountWH']
+	data_frame['amount'] = data['BatteryStatusRecords']['BatteryStatus']['BatteryRemainingAmount']
+	data_frame['capacity'] = data['BatteryStatusRecords']['BatteryStatus']['BatteryCapacity']
+	data_frame['range_ac_on'] = data['BatteryStatusRecords']['CruisingRangeAcOn']
+	data_frame['range_ac_off'] = data['BatteryStatusRecords']['CruisingRangeAcOff']
+	data_frame['timestamp'] = data['BatteryStatusRecords']['TargetDate']
+	data_frame['temp'] = get_temp()
+	
+	df = pd.DataFrame([data_frame])  # Convert dictionary to DataFrame
+
+
+	if not isExist:
+		os.makedirs(dir_path, exist_ok=True)  # Create directory if it doesn't exist
+		print("The new directory is created!")
+		df.to_csv(path, index=False)
+
+		
+	else:
+		old_data_frame = pd.read_csv(path)
+		new_data_frame = pd.concat([old_data_frame, df], axis=0, ignore_index=True)
+		new_data_frame.to_csv(path, index=False)
+	
+	
