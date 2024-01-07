@@ -286,7 +286,10 @@ def lowTemp():
 	"""
 	temp = get_temp()
 
-	if temp < -20:
+	if temp == None:
+		return False
+	
+	if temp < -25:
 		return True
 	else:
 		return False

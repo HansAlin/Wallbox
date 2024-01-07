@@ -172,11 +172,10 @@ while True:
 			# The response from webserver have been changed to auto,  		#
 			# or the car has been connected			                      		#
 			###############################################################
-			elif (response['auto'] == 1 and data['auto'] != 1) or \
+			elif (response['auto'] == 1 and data['auto'] != 1 and connected != "CHARGING_FINISHED") or \
 				  (data['connected'] == "NOT_CONNECTED" and connected != "NOT_CONNECTED" \
 					and data['auto'] == 1):
-				# TODO remove afters testing
-				# if not test:
+
 				hours, soc = leaf_status(now=now, utc=utc_offset)
 				# else:
 				# 	hours	= random.randint(0,6)
@@ -206,7 +205,7 @@ while True:
 			# or the car has been connected and is in fast_smart mode 'on'	#		
 			# and was not cached in previous statement										  #
 			#################################################################
-			elif (response['fast_smart'] == 1 and data['fast_smart'] != 1 ) or \
+			elif (response['fast_smart'] == 1 and data['fast_smart'] != 1 and connected != "CHARGING_FINISHED" ) or \
 				(data['connected'] == "NOT_CONNECTED" and connected != "NOT_CONNECTED" \
 		 		and data['fast_smart'] == 1 ):
 
@@ -222,7 +221,7 @@ while True:
 			# or the car has been connected and is in on mode 'on'					#
 			# and was not cached in previous statement											#
 			#################################################################
-			elif (response['on']== 1 and data['on'] != 1) or \
+			elif (response['on']== 1 and data['on'] != 1 and connected != "CHARGING_FINISHED") or \
 				(data['connected'] == "NOT_CONNECTED" and connected != "NOT_CONNECTED" \
 		 		and data['on'] == 1):
 
@@ -239,7 +238,7 @@ while True:
 			# or the car has been connected and is in 'full' mode						#
 			# and was not cached in previous statement											#
 			#################################################################
-			elif (response['full'] == 1 and data['full'] != 1) or \
+			elif (response['full'] == 1 and data['full'] != 1 and connected != "CHARGING_FINISHED") or \
 				(data['connected'] == "NOT_CONNECTED" and connected != "NOT_CONNECTED" \
 		 		and data['full'] == 1):
 
@@ -397,6 +396,7 @@ while True:
 		if data['ac'] == 1:
 			stop_climat_control(test=test)
 			data['ac'] = 0
+	
 		print("Default auto!", end=" ")
 		data['auto'] = 1
 		data['fast_smart'] = 0
