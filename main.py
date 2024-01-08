@@ -271,16 +271,16 @@ while True:
 			# and the car is in auto mode																	 	#
 			# TODO this might be redundant																 	#
 			#################################################################	
-			elif data['schedule'].empty and	response['auto'] == 1 and \
-				data['remaining_hours'] > 0 and data['new_down_load']:
+			# elif data['schedule'].empty and	response['auto'] == 1 and \
+			# 	data['remaining_hours'] > 0 and data['new_down_load']:
 
-				hours = remaining_hours
-				schedule, remaining_hours = get_chargeSchedule(hour_to_charged=hours, 
-																									 df=nordpool, 
-																									 now=now, 
-																									 pattern='auto' )
-				data['schedule'] = schedule
-				data['remaining_hours'] = remaining_hours
+			# 	hours = remaining_hours
+			# 	schedule, remaining_hours = get_chargeSchedule(hour_to_charged=hours, 
+			# 																						 df=nordpool, 
+			# 																						 now=now, 
+			# 																						 pattern='auto' )
+			# 	data['schedule'] = schedule
+			# 	data['remaining_hours'] = remaining_hours
 
 			#################################################################
 			# The response is off																						#
