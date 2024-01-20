@@ -289,7 +289,7 @@ def lowTemp():
 	if temp == None:
 		return False
 	
-	if temp < -25:
+	if temp < -18:
 		return True
 	else:
 		return False
