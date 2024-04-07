@@ -93,7 +93,7 @@ while True:
 		data['new_down_load'] = new_download
 		
 	connected, available = get_Garo_status()
-	if connected == None:
+	if connected == None or connected == 'CHARGING_PAUSED':
 		time.sleep(time_to_sleep)
 		continue
 	# Response options
@@ -195,7 +195,7 @@ while True:
 																									now=now, pattern='on' )
 			data['schedule'] = schedule
 			data['charge'] = charge
-			data['remaining_hours'] = remaining_hours
+			data['remaining_hours'] = 0
 
 		######################      FULL     ############################
 		# The response from webserver have been changed to full,				#
@@ -257,13 +257,13 @@ while True:
 			data['remaining_hours'] = remaining_hours
 			data['charge'] = charge
 
-		
+		####################     CHARGING      ##########################
+		# Update the values from GARO to align with data in the program	#
+		#################################################################
 		elif connected == "CHARGING":
 			data['charging'] = True
-		elif connected == None:
-			time.sleep(time_to_sleep)
-			print()
-			continue	
+
+
 
 		####################     CLIMATE CONTROLL    ####################
 		# The response from webserver have been changed to ac,					#
