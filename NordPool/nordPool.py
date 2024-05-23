@@ -24,11 +24,12 @@ def getDataNordPool(utc_offset, now, prev_data):
 			return new_data
 		
 		else:
+			# Last time stamp from previous data
 			last_time_stamp_prev = prev_data['TimeStamp'].iloc[-1]
 
-			# Before new data have arrived
+			# Before new data have arrived approx 14:00
 			# or if last time stamp from norpool is more than now
-			diff = (now - prev_data['TimeStamp'].iloc[0])
+			diff = (last_time_stamp_prev - now)
 			if now.hour < 14 or ( diff < datetime.timedelta(hours=0)):
 				new_data = get_price_from_date(now=now, utc_offset=utc_offset)
 			else:
