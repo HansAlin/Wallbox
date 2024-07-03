@@ -15,82 +15,54 @@ from CONFIG.config import low_temp_url, server_url, tz_region
 
 
 def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern, set_time=None, value_lim=82):
-	"""
-	This function creates a charging schedule based on data from nordpool (nordpool_data)
-	Arguments:
-		hour_to_charge: hours for setting schedule
-		nordpool_data: data from nordpool
-		now: current time
-		pattern: which type of charging pattern available, 'auto', 'fast_smart', 'now'
-	Returns:
-		schedule
-		remaining_hours: if not all charging hours are fitted in the first schedule
 
 	"""
-	remaining_hours = 0
+		This function creates a charging schedule based on data from nordpool (nordpool_data)
+		Arguments:
+			hour_to_charge: hours for setting schedule
+			nordpool_data: data from nordpool
+			now: current time
+			pattern: which type of charging pattern available, 'auto', 'fast_smart', 'now'
+		Returns:
+			schedule
+			remaining_hours: if not all charging hours are fitted in the first schedule
 
-
-
+	"""
 	print(f"Getting charging schedule at: {now}", end=" ")
 
 	nordpool_data['TimeStamp'] = pd.to_datetime(nordpool_data['TimeStamp']).dt.tz_localize(None)
 	df_sub = nordpool_data[nordpool_data['TimeStamp'] >= datetime.datetime(year=now.year, month=now.month, day=now.day, hour=now.hour)] 
+	last_time_stamp = df_sub['TimeStamp'].iloc[-1]
 
-	fast_charge_limit = 12
+	hours_to_last_time_stamp = int((last_time_stamp.tz_localize(None) - now.replace(tzinfo=None)).total_seconds()/3600)
+	if hours_to_last_time_stamp > 12:
+		hours_to_last_time_stamp = 12
+	remaining_hours = 0
+
+	charge_limit = 12
 	if pattern == 'fast_smart':
 		# TODO Still uses all data and not a small sub set
-		if hour_to_charged > fast_charge_limit:
+		if hour_to_charged > charge_limit:
 			stop_charge = now + datetime.timedelta(hours=hour_to_charged)
 			charge_schedule = df_sub[df_sub['TimeStamp'] < stop_charge]
 		else:
-			df_sub_sub = df_sub[df_sub['TimeStamp'] < now + datetime.timedelta(hours=fast_charge_limit)]
+			df_sub_sub = df_sub[df_sub['TimeStamp'] < now + datetime.timedelta(hours=charge_limit)]
 			charge_schedule = df_sub_sub.nsmallest(hour_to_charged, 'value')
-			charge_schedule['TimeStamp'] = pd.to_datetime(charge_schedule['TimeStamp'])
-			charge_schedule = charge_schedule.sort_values(by='TimeStamp')
+
 
 	elif pattern == 'auto':
-		sub_schedule = True
-		hour_limit = 10
-		if hour_to_charged > hour_limit:
-			remaining_hours = (hour_to_charged - hour_limit)
-			hour_to_charged = hour_limit
+		charge_schedule = pd.DataFrame()
+		schedule_found = False
+		hours_to_charge = hours_to_last_time_stamp
+		while not schedule_found:
 
-		# Subsub charge_schedule
-		# 3 last hours charge slowly and is not prioritized
-		# The reason for this is that the care take more current in the 
-		# beginning of the charging. Value limit is set to 82 euro/MWh
+			df_sub_smallest = df_sub.nsmallest(hours_to_charge, 'value')
+			value_sum = df_sub_smallest['value'].sum()
+			if value_sum < value_lim:
+				charge_schedule = df_sub_smallest
+				schedule_found = True
 
-		sub_hours = hour_to_charged - 3
-		if sub_hours <= 0:
-			sub_hours = hour_to_charged
-		
-		df_sub_sub = df_sub[df_sub['value'] < value_lim]
-		available_hours = len(df_sub_sub.index)
-		if available_hours < sub_hours:
-			sub_hours = available_hours	
-			sub_schedule = False
-		sub_charge_schedule = df_sub.nsmallest(sub_hours, 'value')
-		sub_charge_schedule['TimeStamp'] = pd.to_datetime(sub_charge_schedule['TimeStamp'])
-		sub_charge_schedule = sub_charge_schedule.sort_values(by='TimeStamp')
-
-		if sub_schedule:
-			# lasting hours
-			last_hours = hour_to_charged - sub_hours
-			# Last previus time  i schedule
-			last_sub_charge_hour = sub_charge_schedule['TimeStamp'].iloc[-1]
-		
-			df_sub_sub = df_sub[df_sub['TimeStamp'] > last_sub_charge_hour]
-			last_charge_schedule = df_sub_sub.nsmallest(last_hours, 'value')
-			length_of_schedule = len(last_charge_schedule.index)
-
-			if length_of_schedule < last_hours:
-				remaining_hours = remaining_hours + (last_hours - len(last_charge_schedule.index))
-
-			charge_schedule = pd.concat([sub_charge_schedule, last_charge_schedule])
-			charge_schedule = charge_schedule.sort_values(by='TimeStamp')
-		else:
-			charge_schedule = sub_charge_schedule
-			remaining_hours = remaining_hours + (hour_to_charged - sub_hours)
+			hours_to_charge = hours_to_charge - 1
 
 	elif pattern == 'full':
 		if set_time == None:
@@ -103,13 +75,9 @@ def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern, set_time=No
 		if next_day - now > datetime.timedelta(hours=hour_to_charged):
 			df_sub_sub = df_sub[df_sub['TimeStamp'] < next_day]
 			charge_schedule = df_sub_sub.nsmallest(hour_to_charged, 'value')
-			charge_schedule['TimeStamp'] = pd.to_datetime(charge_schedule['TimeStamp'])
-			charge_schedule = charge_schedule.sort_values(by='TimeStamp')
 		else:
 			df_sub_sub = df_sub[df_sub['TimeStamp'] < now + datetime.timedelta(hours=(hour_to_charged - 1))]
 			charge_schedule = df_sub_sub.nsmallest(hour_to_charged, 'value')
-			charge_schedule['TimeStamp'] = pd.to_datetime(charge_schedule['TimeStamp'])
-			charge_schedule = charge_schedule.sort_values(by='TimeStamp')
 
 	elif pattern == 'on':
 		#TODO test
@@ -117,8 +85,10 @@ def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern, set_time=No
 		print("Charge now", end=" ")
 		df_sub_sub = df_sub[df_sub['TimeStamp'] < now + datetime.timedelta(hours=hours_on)]
 		charge_schedule = df_sub_sub
-		charge_schedule['TimeStamp'] = pd.to_datetime(charge_schedule['TimeStamp'])
-		charge_schedule = charge_schedule.sort_values(by='TimeStamp')
+
+
+	charge_schedule['TimeStamp'] = pd.to_datetime(charge_schedule['TimeStamp'])
+	charge_schedule = charge_schedule.sort_values(by='TimeStamp')
 
 
 	print(f"Charging schedule {charge_schedule['TimeStamp']}", end=" ")
@@ -126,7 +96,125 @@ def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern, set_time=No
 	print(f'With remaining hours {remaining_hours}', end=" ")
 	with  open('data/schedule_log.csv', 'a') as f:
 		f.write(str({'TimeStamp':now,'schedule':charge_schedule['TimeStamp']} ))
-	return pd.DataFrame(charge_schedule['TimeStamp']), remaining_hours
+	return pd.DataFrame(charge_schedule['TimeStamp']), remaining_hours		
+
+
+
+		
+
+# def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern, set_time=None, value_lim=82):
+# 	"""
+# 	This function creates a charging schedule based on data from nordpool (nordpool_data)
+# 	Arguments:
+# 		hour_to_charge: hours for setting schedule
+# 		nordpool_data: data from nordpool
+# 		now: current time
+# 		pattern: which type of charging pattern available, 'auto', 'fast_smart', 'now'
+# 	Returns:
+# 		schedule
+# 		remaining_hours: if not all charging hours are fitted in the first schedule
+
+# 	"""
+# 	remaining_hours = 0
+
+
+
+# 	print(f"Getting charging schedule at: {now}", end=" ")
+
+# 	nordpool_data['TimeStamp'] = pd.to_datetime(nordpool_data['TimeStamp']).dt.tz_localize(None)
+# 	df_sub = nordpool_data[nordpool_data['TimeStamp'] >= datetime.datetime(year=now.year, month=now.month, day=now.day, hour=now.hour)] 
+
+# 	fast_charge_limit = 12
+# 	if pattern == 'fast_smart':
+# 		# TODO Still uses all data and not a small sub set
+# 		if hour_to_charged > fast_charge_limit:
+# 			stop_charge = now + datetime.timedelta(hours=hour_to_charged)
+# 			charge_schedule = df_sub[df_sub['TimeStamp'] < stop_charge]
+# 		else:
+# 			df_sub_sub = df_sub[df_sub['TimeStamp'] < now + datetime.timedelta(hours=fast_charge_limit)]
+# 			charge_schedule = df_sub_sub.nsmallest(hour_to_charged, 'value')
+# 			charge_schedule['TimeStamp'] = pd.to_datetime(charge_schedule['TimeStamp'])
+# 			charge_schedule = charge_schedule.sort_values(by='TimeStamp')
+
+# 	elif pattern == 'auto':
+# 		sub_schedule = True
+# 		hour_limit = 10
+# 		if hour_to_charged > hour_limit:
+# 			remaining_hours = (hour_to_charged - hour_limit)
+# 			hour_to_charged = hour_limit
+
+# 		# Subsub charge_schedule
+# 		# 3 last hours charge slowly and is not prioritized
+# 		# The reason for this is that the care take more current in the 
+# 		# beginning of the charging. Value limit is set to 82 euro/MWh
+
+# 		sub_hours = hour_to_charged - 3
+# 		if sub_hours <= 0:
+# 			sub_hours = hour_to_charged
+		
+# 		df_sub_sub = df_sub[df_sub['value'] < value_lim]
+# 		available_hours = len(df_sub_sub.index)
+# 		if available_hours < sub_hours:
+# 			sub_hours = available_hours	
+# 			sub_schedule = False
+# 		sub_charge_schedule = df_sub.nsmallest(sub_hours, 'value')
+# 		sub_charge_schedule['TimeStamp'] = pd.to_datetime(sub_charge_schedule['TimeStamp'])
+# 		sub_charge_schedule = sub_charge_schedule.sort_values(by='TimeStamp')
+
+# 		if sub_schedule:
+# 			# lasting hours
+# 			last_hours = hour_to_charged - sub_hours
+# 			# Last previus time  i schedule
+# 			last_sub_charge_hour = sub_charge_schedule['TimeStamp'].iloc[-1]
+		
+# 			df_sub_sub = df_sub[df_sub['TimeStamp'] > last_sub_charge_hour]
+# 			last_charge_schedule = df_sub_sub.nsmallest(last_hours, 'value')
+# 			length_of_schedule = len(last_charge_schedule.index)
+
+# 			if length_of_schedule < last_hours:
+# 				remaining_hours = remaining_hours + (last_hours - len(last_charge_schedule.index))
+
+# 			charge_schedule = pd.concat([sub_charge_schedule, last_charge_schedule])
+# 			charge_schedule = charge_schedule.sort_values(by='TimeStamp')
+# 		else:
+# 			charge_schedule = sub_charge_schedule
+# 			remaining_hours = remaining_hours + (hour_to_charged - sub_hours)
+
+# 	elif pattern == 'full':
+# 		if set_time == None:
+# 			next_hour = (now.hour + 12) % 24
+# 		else:	
+# 			next_hour = set_time
+# 		next_day = next_datetime(now, next_hour)
+# 		next_day = next_day.replace(minute=0, second=0, microsecond=0 )
+
+# 		if next_day - now > datetime.timedelta(hours=hour_to_charged):
+# 			df_sub_sub = df_sub[df_sub['TimeStamp'] < next_day]
+# 			charge_schedule = df_sub_sub.nsmallest(hour_to_charged, 'value')
+# 			charge_schedule['TimeStamp'] = pd.to_datetime(charge_schedule['TimeStamp'])
+# 			charge_schedule = charge_schedule.sort_values(by='TimeStamp')
+# 		else:
+# 			df_sub_sub = df_sub[df_sub['TimeStamp'] < now + datetime.timedelta(hours=(hour_to_charged - 1))]
+# 			charge_schedule = df_sub_sub.nsmallest(hour_to_charged, 'value')
+# 			charge_schedule['TimeStamp'] = pd.to_datetime(charge_schedule['TimeStamp'])
+# 			charge_schedule = charge_schedule.sort_values(by='TimeStamp')
+
+# 	elif pattern == 'on':
+# 		#TODO test
+# 		hours_on = 16
+# 		print("Charge now", end=" ")
+# 		df_sub_sub = df_sub[df_sub['TimeStamp'] < now + datetime.timedelta(hours=hours_on)]
+# 		charge_schedule = df_sub_sub
+# 		charge_schedule['TimeStamp'] = pd.to_datetime(charge_schedule['TimeStamp'])
+# 		charge_schedule = charge_schedule.sort_values(by='TimeStamp')
+
+
+# 	print(f"Charging schedule {charge_schedule['TimeStamp']}", end=" ")
+# 	plot_data_schedule(charge_schedule, df_sub, now)
+# 	print(f'With remaining hours {remaining_hours}', end=" ")
+# 	with  open('data/schedule_log.csv', 'a') as f:
+# 		f.write(str({'TimeStamp':now,'schedule':charge_schedule['TimeStamp']} ))
+# 	return pd.DataFrame(charge_schedule['TimeStamp']), remaining_hours
 
 def plot_data_schedule(charge_schedule, noorpool_data, now):
 	hh = DateFormatter('%H')
@@ -179,8 +267,9 @@ def changeChargeStatusGaro(charging, charge, now, connected, available, test, ut
 			print("Status not changed at GARO!", end=" ")
 		else:
 			print(f"Garo turned off!", end=" ")
-			h, soc = leaf_status(now, utc)
-			_ = set_button_state({'soc':soc})
+			# Leaf status not available
+			# h, soc = leaf_status(now, utc)
+			# _ = set_button_state({'soc':soc})
 		time.sleep(4)
 		connected, available = get_Garo_status()	
 
@@ -198,8 +287,9 @@ def changeChargeStatusGaro(charging, charge, now, connected, available, test, ut
 			print("Status not changed at GARO!", end=" ")
 		else:
 			print(f"Garo turned on!", end=" ")
-			h, soc = leaf_status(now, utc)
-			_ = set_button_state({'soc':soc})
+			# Leaf status not available
+			# h, soc = leaf_status(now, utc)
+			# _ = set_button_state({'soc':soc})
 		time.sleep(4)
 		connected, available = get_Garo_status()	
 
@@ -235,6 +325,7 @@ def get_button_state():
 	print(f"Hours: {data['hours']}", end=" ")			
 			
 	return data
+
 
 def set_button_state(state):
 	try:
