@@ -14,6 +14,10 @@ from CONFIG.config import low_temp_url, server_url, tz_region
 # from LEAF.leaf import leaf_status
 
 
+def get_value_lim():
+	pass
+
+
 def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern, set_time=None, value_lim=82):
 
 	"""
@@ -30,6 +34,9 @@ def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern, set_time=No
 	"""
 	print(f"Getting charging schedule at: {now}", end=" ")
 
+	#TODO Creat a function that calculates the value lim besed on previus week data
+	# value_lim = get_value_lim(nordpool_data, now)
+
 	nordpool_data['TimeStamp'] = pd.to_datetime(nordpool_data['TimeStamp']).dt.tz_localize(None)
 	df_sub = nordpool_data[nordpool_data['TimeStamp'] >= datetime.datetime(year=now.year, month=now.month, day=now.day, hour=now.hour)] 
 	last_time_stamp = df_sub['TimeStamp'].iloc[-1]
@@ -37,7 +44,6 @@ def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern, set_time=No
 	hours_to_last_time_stamp = int((last_time_stamp.tz_localize(None) - now.replace(tzinfo=None)).total_seconds()/3600)
 	if hours_to_last_time_stamp > 12:
 		hours_to_last_time_stamp = 12
-	remaining_hours = 0
 
 	charge_limit = 12
 	if pattern == 'fast_smart':
@@ -93,10 +99,9 @@ def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern, set_time=No
 
 	print(f"Charging schedule {charge_schedule['TimeStamp']}", end=" ")
 	plot_data_schedule(charge_schedule, df_sub, now)
-	print(f'With remaining hours {remaining_hours}', end=" ")
 	with  open('data/schedule_log.csv', 'a') as f:
 		f.write(str({'TimeStamp':now,'schedule':charge_schedule['TimeStamp']} ))
-	return pd.DataFrame(charge_schedule['TimeStamp']), remaining_hours		
+	return pd.DataFrame(charge_schedule['TimeStamp'])	
 
 
 

@@ -43,6 +43,8 @@ def getDataNordPool(utc_offset, now, prev_data):
 			if last_time_stamp_prev.day + 1 == first_time_stamp_new.day:
 				new_data = concat_data(prev_data=prev_data, new_data=new_data)
 
+			#TODO Check if the data is acumulated or not
+			# Make it only save the the last two weeks of data
 			save_data(new_data)
 
 			return new_data

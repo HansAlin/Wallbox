@@ -93,6 +93,9 @@ while True:
 		data['new_down_load'] = new_download
 		
 	connected, available = get_Garo_status()
+	#TODO remove after testing
+	connected = 'CONNECTED'
+	test = True
 	if connected == None or connected == 'CHARGING_PAUSED':
 		time.sleep(time_to_sleep)
 		continue
@@ -140,29 +143,14 @@ while True:
 				(data['connected'] == "NOT_CONNECTED" and connected != "NOT_CONNECTED" \
 				and data['auto'] == 1):
 
-			hours, soc = leaf_status(now=now, utc=utc_offset)
-			# else:
-			# 	hours	= random.randint(0,6)
-			# 	print(f'Test hours to charge: {hours}')
-
-			if hours > 0:
-				schedule, remaining_hours = get_chargeSchedule(hour_to_charged=hours, 
-																									nordpool_data=data['nordpool'], 
-																									now=now, pattern='auto' )
-			elif hours == 0:
-				schedule = pd.DataFrame()
-				remaining_hours = 0
-				charge = False
-				data['charge'] = charge
-			else:
-				with open('data/saved_data.pkl', 'wb') as f:
-					pickle.dump(data,f)
-				time.sleep(time_to_sleep)
-				continue
+			schedule= get_chargeSchedule(hour_to_charged=12, 
+																	nordpool_data=data['nordpool'], 
+																	now=now, 
+																	pattern='auto' )
 
 			data['schedule'] = schedule
-			data['remaining_hours'] = remaining_hours
-			_ = set_button_state({'soc':soc})
+			data['remaining_hours'] = 0
+
 
 		##################     FAST SMART       #########################
 		# The response from webserver have been changed to fast_smart,	#
@@ -174,11 +162,12 @@ while True:
 			and data['fast_smart'] == 1 ):
 
 			hours = response['hours']
-			schedule, remaining_hours = get_chargeSchedule(hour_to_charged=hours, 
-																									nordpool_data=data['nordpool'], 
-																									now=now, pattern='fast_smart')
+			schedule = get_chargeSchedule(hour_to_charged=hours, 
+																		nordpool_data=data['nordpool'], 
+																		now=now, 
+																		pattern='fast_smart')
 			data['schedule'] = schedule
-			data['remaining_hours'] = remaining_hours
+			data['remaining_hours'] = 0
 
 		#####################      ON          ##########################
 		# The response from webserver have been changed to on,					#
@@ -190,9 +179,10 @@ while True:
 			and data['on'] == 1):
 
 			charge = True
-			schedule,	remaining_hours = get_chargeSchedule(hour_to_charged=16, 
-																									nordpool_data=data['nordpool'], 
-																									now=now, pattern='on' )
+			schedule = get_chargeSchedule(hour_to_charged=16, 
+																		nordpool_data=data['nordpool'], 
+																		now=now, 
+																		pattern='on' )
 			data['schedule'] = schedule
 			data['charge'] = charge
 			data['remaining_hours'] = 0
@@ -206,45 +196,15 @@ while True:
 			(data['connected'] == "NOT_CONNECTED" and connected != "NOT_CONNECTED" \
 			and data['full'] == 1):
 
-			hours, soc = leaf_status(now=now, utc=utc_offset)
-
-			if hours > 0:
-				schedule, remaining_hours = get_chargeSchedule(hour_to_charged=hours, 
+			schedule = get_chargeSchedule(hour_to_charged=hours, 
 																									nordpool_data=data['nordpool'], 
 																									now=now, 
 																									pattern='full', 
 																									set_time=response['set_time'] )
-			elif hours == 0:
-				schedule = pd.DataFrame()
-				remaining_hours = 0
-				charge = False
-				data['charge'] = charge
-			else:
-				with open('data/saved_data.pkl', 'wb') as f:
-					pickle.dump(data,f)
-				time.sleep(time_to_sleep)
-				continue
 
 			data['schedule'] = schedule
 			data['remaining_hours'] = remaining_hours
 
-			_ = set_button_state({'soc':soc})
-
-		#################################################################
-		# There is remaing hours to charge and new prices have occured 	#
-		# and the car is in auto mode																	 	#
-		# TODO this might be redundant																 	#
-		#################################################################	
-		# elif data['schedule'].empty and	response['auto'] == 1 and \
-		# 	data['remaining_hours'] > 0 and data['new_down_load']:
-
-		# 	hours = remaining_hours
-		# 	schedule, remaining_hours = get_chargeSchedule(hour_to_charged=hours, 
-		# 																						 df=nordpool, 
-		# 																						 now=now, 
-		# 																						 pattern='auto' )
-		# 	data['schedule'] = schedule
-		# 	data['remaining_hours'] = remaining_hours
 
 		#################################################################
 		# The response is off																						#
@@ -294,12 +254,12 @@ while True:
 		#################################################################
 		if data['new_down_load'] and \
 						(data['remaining_hours'] > 0 or not data['schedule'].empty ):
-			remaining_hours = data['remaining_hours'] + len(data['schedule'].index)
-			schedule, remaining_hours = get_chargeSchedule(hour_to_charged=remaining_hours, 
+			schedule = get_chargeSchedule(hour_to_charged=12, 
 																								nordpool_data=data['nordpool'], 
-																								now=now, pattern='auto' )
+																								now=now, 
+																								pattern='auto' )
 			data['schedule'] = schedule
-			data['remaining_hours'] = remaining_hours
+			data['remaining_hours'] = 0
 
 		#################################################################
 		# Turn status to auto as default																#
