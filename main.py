@@ -1,4 +1,5 @@
 import sys
+import os
 from selenium import webdriver
 import random
 # from selenium.webdriver.support.ui import Select
@@ -35,6 +36,9 @@ Leafpy: Current url in auth.py is url = "https://gdcportalgw.its-mo.com/api_v210
             custom_sessionid = r.json()['VehicleInfoList']['vehicleInfo'][0]['custom_sessionid']
 	          VIN = r.json()['CustomerInfo']['VehicleInfo']['VIN']
 """
+if os.getenv('PYTHONDEBUG', '0') == '1':
+    test = True
+
 if (args_count := len(sys.argv)) > 2:
 	print(f"No more than one argument expected, got {args_count - 1}")
 	print("Program in normal mode!")
@@ -68,9 +72,13 @@ ac_timeout = now
 # TODO remove after testing
 data['ac'] = 0
 
+if test:
+	time_to_sleep = 5
+	schedule = pd.DataFrame()
+	data['schedule'] = schedule
+
 while True:
-	if test:
-		time_to_sleep = 5
+
 
 	now, utc_offset = get_now()
 
@@ -93,9 +101,10 @@ while True:
 		data['new_down_load'] = new_download
 		
 	connected, available = get_Garo_status()
-	#TODO remove after testing
-	connected = 'CONNECTED'
-	test = True
+	if test:
+		connected = 'CONNECTED'
+		available = 'ALWAYS_ON'
+
 	if connected == None or connected == 'CHARGING_PAUSED':
 		time.sleep(time_to_sleep)
 		continue
@@ -267,7 +276,7 @@ while True:
 		if (response['on'] == 1 or \
 				response['full'] == 1 or \
 				response['fast_smart'] == 1) and \
-					data['schedule'].empty and remaining_hours == 0:
+					data['schedule'].empty:
 			
 			print("Default auto!", end=" ")
 			_  = set_button_state({'auto':1,'fast_smart':0,'on':0, 'full':0})
@@ -298,12 +307,12 @@ while True:
 		#####################################################################
 		charging, connected, available = changeChargeStatusGaro(charging=data['charging'], 
 																												 charge=data['charge'], 
-																												 now=now, 
 																												 connected=connected, 
 																												 available=available,
-																												 test=test,
-																												 utc=utc_offset,
-																												 leaf_status=leaf_status)
+																												 test=test,)
+
+		if test:
+			connected = 'CONNECTED'
 
 		# If the schedule is out of date, delete it
 		if not data['schedule'].empty:
@@ -344,12 +353,9 @@ while True:
 		
 		charging, connected, available = changeChargeStatusGaro(charging=data['charging'], 
 																												 charge=data['charge'], 
-																												 now=now, 
 																												 connected=connected, 
 																												 available=available,
-																												 test=test,
-																												 utc=utc_offset,
-																												 leaf_status=leaf_status)
+																												 test=test,)
 
 		data['charging'] = charging
 	
