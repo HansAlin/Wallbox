@@ -1,20 +1,11 @@
 import sys
 import os
-from selenium import webdriver
-import random
-# from selenium.webdriver.support.ui import Select
-# from selenium.webdriver.common.by import By
-# from selenium.webdriver.chrome.options import Options
 import time
 from nordpool import elspot, elbas
 from pprint import pprint
 import pandas as pd
-# from leafpy import Leaf
-import requests
 import datetime
-import pytz
 import pickle
-from bs4 import BeautifulSoup
 from GARO.garo import get_Garo_status, on_off_Garo
 from LEAF.leaf import leaf_status, start_climat_control, stop_climat_control
 from NordPool.nordPool import getDataNordPool
@@ -261,12 +252,19 @@ while True:
 		# If  new data is downloaded from nordpool. And there is still 	#
 		# remaining hours to charge or still schedule										#
 		#################################################################
-		if data['new_down_load'] and \
-						(data['remaining_hours'] > 0 or not data['schedule'].empty ):
+		if data['new_down_load']:
+			if response['auto'] == 1:
+				pattern = 'auto'
+			elif response['fast_smart'] == 1:
+				pattern = 'fast_smart'
+			elif response['on'] == 1:
+				pattern = 'on'
+			elif response['full'] == 1:
+				pattern = 'full'
 			schedule = get_chargeSchedule(hour_to_charged=12, 
 																								nordpool_data=data['nordpool'], 
 																								now=now, 
-																								pattern='auto' )
+																								pattern=pattern )
 			data['schedule'] = schedule
 			data['remaining_hours'] = 0
 
