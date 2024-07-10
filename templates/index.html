@@ -13,12 +13,12 @@
 	<center>
     <header>
         <h1>Charger Control</h1>
-        <h2>Status and Control</h2>
-        <p>Battery status: {{soc}} %</p> 
+        <!-- <h2>Status and Control</h2>
+        <p>Battery status: {{soc}} %</p>  -->
     </header>
    
     
-    <section class="control-section">
+    <!-- <section class="control-section">
         <h3>Full Charge</h3>
         {% if full == 1 %}
             <h2> ON </h2>
@@ -43,10 +43,10 @@
             <button type="submit" class="button">Set Time</button>
         </form>
 
-    </section>
+    </section> -->
 
 
-    <section class="control-section">
+    <!-- <section class="control-section">
         <h3>Climate control</h3>
         {% if ac == 1 %}
             <h2> ON </h2>
@@ -57,7 +57,7 @@
         {% else %}
             <h2> Error: Unexpected value for 'ac': {{ ac }} </h2>
         {% endif %}
-    </section>
+    </section> -->
 
     <section class="control-section">
         <h3>Auto</h3>
@@ -71,7 +71,7 @@
     </section>
     
     <section class="control-section">
-        <h3>Fast Smart Charge within 12 hours</h3>
+        <h3>Fast Smart Charge</h3>
         {% if fast_smart == 1 %}
             <h2> ON </h2>
             <a href="/fast_smart/off" class="button">TURN OFF</a>
@@ -84,6 +84,20 @@
             <label for="hours">Hours needed:</label>
             <input type="text" id="hours" name="hours" value="{{ hours }}">
             <button type="submit" class="button">Submit</button>
+        </form>
+        <p>Charged within: {{ '%02d' % set_time }}:00 h</p> 
+        <form action="/set_time" method="post">
+            <label for="set_time">Change time:</label>
+            <select id="set_time" name="set_time">
+                {% for i in range(24) %}
+                    {% if i == set_time %}
+                        <option value="{{ '%02d' % i }}:00" selected>{{ '%02d' % i }}:00</option>
+                    {% else %}
+                        <option value="{{ '%02d' % i }}:00">{{ '%02d' % i }}:00</option>
+                    {% endif %}
+                {% endfor %}
+            </select>
+            <button type="submit" class="button">Set Time</button>
         </form>
     </section>
 

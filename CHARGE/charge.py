@@ -58,7 +58,7 @@ def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern, set_time=No
 			stop_charge = now + datetime.timedelta(hours=hour_to_charged)
 			charge_schedule = df_sub[df_sub['TimeStamp'] < stop_charge]
 		else:
-			df_sub_sub = df_sub[df_sub['TimeStamp'] < now + datetime.timedelta(hours=charge_limit)]
+			df_sub_sub = df_sub[df_sub['TimeStamp'] < now + datetime.timedelta(hours=set_time)]
 			charge_schedule = df_sub_sub.nsmallest(hour_to_charged, 'value')
 
 
@@ -103,7 +103,7 @@ def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern, set_time=No
 	charge_schedule = charge_schedule.sort_values(by='TimeStamp')
 
 
-	print(f"Charging schedule:")
+	print(f"Value lim: {value_lim}, Charging schedule:")
 	print(charge_schedule)
 	plot_data_schedule(charge_schedule, df_sub, now)
 	with  open('data/schedule_log.csv', 'a') as f:

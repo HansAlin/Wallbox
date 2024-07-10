@@ -165,6 +165,7 @@ while True:
 			schedule = get_chargeSchedule(hour_to_charged=hours, 
 																		nordpool_data=data['nordpool'], 
 																		now=now, 
+																		set_time=response['set_time'],
 																		pattern='fast_smart')
 			data['schedule'] = schedule
 			data['remaining_hours'] = 0
@@ -286,9 +287,9 @@ while True:
 		data['hours'] = response['hours']
 		data['connected'] = connected
 
-	###############      LOW TEMP			###############################
-	# If the temperature is low, charge the car!										#
-	#################################################################
+		###############      LOW TEMP			###############################
+		# If the temperature is low, charge the car!										#
+		#################################################################
 		if lowTemp():
 			print("Low temp!", end=" ")
 
@@ -308,11 +309,14 @@ while True:
 																												 connected=connected, 
 																												 available=available,
 																												 test=test,)
+		data['charging'] = charging
 
 		if test:
 			connected = 'CONNECTED'
 
-		# If the schedule is out of date, delete it
+		###################  IF SCHEDULE IS OUT OF DATE  ###################
+		# If the schedule is out of date, delete it												 #
+		#####################################################################
 		if not data['schedule'].empty:
 			if datetime.timedelta(hours=1) + data['schedule']['TimeStamp'].iloc[-1] < now:
 				schedule = pd.DataFrame()
@@ -364,6 +368,7 @@ while True:
 	data['new_down_load'] = new_download
 	data['connected'] = connected
 	data['available'] = available
+
 	
 	
 	
