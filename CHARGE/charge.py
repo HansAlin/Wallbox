@@ -14,11 +14,54 @@ from CONFIG.config import low_temp_url, server_url, tz_region
 # from LEAF.leaf import leaf_status
 
 
-def get_value_lim(nordpool_data, now):
-	prev_data = nordpool_data[nordpool_data['TimeStamp'] < now]
-	value_lim = prev_data['value'].mean()
-	value_lim = max([value_lim, 10])
-	return value_lim
+def get_charge_schedule_prev_mean(nordpool_data, prev_value_lim, now, hours_to_last_time_stamp, df_sub):
+		"""
+			This function calculates the previuos mean and creates a schedule based
+			how many hours adds up to the mean value
+
+			Args:
+				nordpool_data: data from nordpool
+				prev_value_lim: maximum value alowed for charging
+				now: current time
+				hours_to_last_time_stamp: hours to the last time stamp in nordpool data
+				df_sub: subset of nordpool data from now to the last time stamp
+
+			Returns:
+				charge_schedule: schedule for charging
+				value_lim: value limit for charging
+		"""
+		prev_data = nordpool_data[nordpool_data['TimeStamp'] < now]
+		value_lim = prev_data['value'].mean()
+
+		value_lim = min([value_lim, prev_value_lim])
+		charge_schedule = pd.DataFrame()
+		schedule_found = False
+		hours_to_charge = hours_to_last_time_stamp
+		while not schedule_found:
+
+			df_sub_smallest = df_sub.nsmallest(hours_to_charge, 'value')
+			value_sum = df_sub_smallest['value'].sum()
+			if value_sum < value_lim:
+				charge_schedule = df_sub_smallest
+				schedule_found = True
+
+			hours_to_charge = hours_to_charge - 1
+
+		return charge_schedule, value_lim	
+
+def get_charge_schedule_prev_lowest(nordpool_data, now, df_sub, prev_value_lim):
+		"""
+			This
+		"""
+		prev_data = nordpool_data[nordpool_data['TimeStamp'] < now]
+		sub_schedule = prev_data.nsmallest(24, 'value')	
+		value_lim = sub_schedule['value'].mean()
+		value_lim = min([value_lim, prev_value_lim])
+		charge_schedule = df_sub[df_sub['value'] < value_lim]
+
+		return charge_schedule, value_lim
+
+
 
 
 def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern, set_time=None, value_lim=82):
@@ -50,8 +93,6 @@ def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern, set_time=No
 
 	charge_limit = 12
 
-	value_lim = np.min([value_lim, get_value_lim(nordpool_data, now)])
-
 	if pattern == 'fast_smart':
 		# TODO Still uses all data and not a small sub set
 		if hour_to_charged > charge_limit:
@@ -60,21 +101,12 @@ def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern, set_time=No
 		else:
 			df_sub_sub = df_sub[df_sub['TimeStamp'] < now + datetime.timedelta(hours=set_time)]
 			charge_schedule = df_sub_sub.nsmallest(hour_to_charged, 'value')
-
+		print(f"Set time: {set_time}, ", end=" ")
 
 	elif pattern == 'auto':
-		charge_schedule = pd.DataFrame()
-		schedule_found = False
-		hours_to_charge = hours_to_last_time_stamp
-		while not schedule_found:
+		#charge_schedule, value_lim = get_charge_schedule_prev_mean(nordpool_data,value_lim,now, hours_to_last_time_stamp, df_sub)
+		charge_schedule, value_lim = get_charge_schedule_prev_lowest(nordpool_data, now, df_sub, value_lim)
 
-			df_sub_smallest = df_sub.nsmallest(hours_to_charge, 'value')
-			value_sum = df_sub_smallest['value'].sum()
-			if value_sum < value_lim:
-				charge_schedule = df_sub_smallest
-				schedule_found = True
-
-			hours_to_charge = hours_to_charge - 1
 
 	elif pattern == 'full':
 		if set_time == None:
@@ -93,7 +125,7 @@ def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern, set_time=No
 
 	elif pattern == 'on':
 		#TODO test
-		hours_on = 16
+		hours_on = hour_to_charged
 		print("Charge now", end=" ")
 		df_sub_sub = df_sub[df_sub['TimeStamp'] < now + datetime.timedelta(hours=hours_on)]
 		charge_schedule = df_sub_sub
@@ -105,29 +137,55 @@ def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern, set_time=No
 
 	print(f"Value lim: {value_lim}, Charging schedule:")
 	print(charge_schedule)
-	plot_data_schedule(charge_schedule, df_sub, now)
+	plot_data_schedule(charge_schedule, nordpool_data, now, save_uniqe_plots=True)
 	with  open('data/schedule_log.csv', 'a') as f:
 		f.write(str({'TimeStamp':now,'schedule':charge_schedule['TimeStamp']} ))
-	return pd.DataFrame(charge_schedule['TimeStamp'])	
+	return charge_schedule
 
-
-
-
-def plot_data_schedule(charge_schedule, noorpool_data, now):
+def plot_nordpool_data(nordpool_data):
 	hh = DateFormatter('%H')
-	x1 = noorpool_data['TimeStamp'].values
-	y1 = noorpool_data['value'].values
+	x = nordpool_data['TimeStamp'].values
+	y = nordpool_data['value'].values
+	fig, ax = plt.subplots()
+	ax.xaxis.set_major_formatter(hh)
+	ax.scatter(x, y)
+	ax.set_title(f'Nordpool data')
+	vertical_line = datetime.datetime.now()
+	ax.axvline(x=vertical_line, color='red')
+	ax.set_ylim(0, max(y))
+	plot_path = f'static/plot_nordpool.png'
+	fig.savefig(plot_path)
+	plt.close(fig)
+	send_image_to_server('static/plot_nordpool.png')
+	# print("Save fig!")
+	#plt.show(
+
+
+def plot_data_schedule(charge_schedule, nordpool_data, now, save_uniqe_plots=False):
+	sub_nordpool_data = nordpool_data[nordpool_data['TimeStamp'] > now - datetime.timedelta(hours=24)] 
+	hh = DateFormatter('%H')
+	x1 = sub_nordpool_data['TimeStamp'].values
+	y1 = sub_nordpool_data['value'].values
 	fig, ax = plt.subplots()
 	ax.xaxis.set_major_formatter(hh)
 	ax.scatter(x1, y1 , color='blue')
-	x2 = charge_schedule['TimeStamp'].values
-	y2 = charge_schedule['value'].values
-	ax.scatter(x2, y2, color='green')
-	plot_path = f'data/plots/plot_{now.year}-{now.month}-{now.day}_{now.hour}:{now.minute}.png'
-	fig.savefig(plot_path)
+	if not charge_schedule.empty:
+		x2 = charge_schedule['TimeStamp'].values
+		print(charge_schedule.keys())
+		y2 = charge_schedule['value'].values
+		ax.scatter(x2, y2, color='green')
+	ax.set_title(f'Schedule')
+	ax.set_ylim(0, max(y1))
+	vertical_line = datetime.datetime.now()
+	ax.axvline(x=vertical_line, color='red')
+	#TODO remove saving of all schedules after testing
+	if save_uniqe_plots:
+		plot_path = f'data/plots/plot_{now.year}-{now.month}-{now.day}_{now.hour}:{now.minute}.png'
+		fig.savefig(plot_path)
 	fig.savefig('static/image.png')
+	plt.close(fig)
 	send_image_to_server('static/image.png')
-	print("Save fig!")
+	# print("Save fig!")
 	#plt.show()
 
 
@@ -234,18 +292,21 @@ def set_button_state(state):
 		print("Not able to contact server!")
 		return None
 
-def send_image_to_server(image_path):
-    try:
-        with open(image_path, 'rb') as img:
-            response = requests.post(server_url + '/upload_image', files={'image': img})
-        if response.status_code == 200:
-            print("Successfully uploaded image to server!")
-        else:
-            print("Could not upload image to server!")
-        return response.status_code
-    except:
-        print("Not able to contact server!")
-        return None
+def send_image_to_server(image_path, verbose=False):
+	try:
+		with open(image_path, 'rb') as img:
+			response = requests.post(server_url + '/upload_image', files={'image': img})
+		if response.status_code == 200:
+			if verbose:
+				print("Successfully uploaded image to server!", end=" ")
+		else:
+			if verbose:
+				print("Could not upload image to server!", end=" ")
+		return response.status_code
+	except:
+		if verbose:
+			print("Not able to contact server!", end=" ")
+		return None
 
 def get_now(*args):
 	"""
@@ -294,7 +355,7 @@ def get_temp():
 		return None
 
 
-def creta_data_file():
+def create_data_file():
 	data = {}
 
 	data['nordpool'] = pd.DataFrame()

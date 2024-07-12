@@ -9,7 +9,7 @@ auto_Sts = 1
 full_Sts = 0
 fast_smart_Sts = 0
 now_Sts = 0
-set_time = 8
+set_time = 12
 hours = 5
 soc = 0
 ac = 0
@@ -135,6 +135,7 @@ def action(deviceName, action):
 	return render_template('index.html', **templateData)
 
 
+
 @app.route('/get_status', methods=['GET'])
 def get_status():
 	global auto_Sts
@@ -167,6 +168,23 @@ def set_value():
 	except ValueError:
 		hours ="0"
 	return redirect('/')
+
+@app.route('/set_time', methods=['POST'])
+def update_time():
+    set_time = int(request.form.get('set_time')[:2])  # Extract hours from "HH:00"
+    templateData = {
+        'title' : 'Charger',
+        'auto' : auto_Sts,
+        'full': full_Sts,
+        'fast_smart' : fast_smart_Sts,
+        'on': now_Sts,
+        'hours':hours,
+        'set_time': set_time,
+        'image_filename': 'image.png',
+        'soc': soc,
+        'ac': ac
+    }
+    return render_template('index.html',  **templateData)
 
 @app.route('/set_state', methods=['POST'])
 def set_state():

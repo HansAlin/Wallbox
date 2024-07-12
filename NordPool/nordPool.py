@@ -20,7 +20,9 @@ def getDataNordPool(utc_offset, now, prev_data):
 	try:
 		if prev_data.empty:
 			new_data = get_price_from_date(now=now, utc_offset=utc_offset)
-			save_data(new_data)
+			log_nord_pool_data = load_data()
+			new_log_nord_pool_data = concat_data(prev_data=log_nord_pool_data, new_data=new_data)
+			save_data(new_log_nord_pool_data)
 			return new_data
 		
 		else:
@@ -38,14 +40,20 @@ def getDataNordPool(utc_offset, now, prev_data):
 				if new_data['value'].iloc[0] > 10000:
 					new_data = get_price_from_date(now=now, utc_offset=utc_offset)
 
+			log_nord_pool_data = load_data()
+			new_log_nord_pool_data = concat_data(prev_data=log_nord_pool_data, new_data=new_data)
+			save_data(new_log_nord_pool_data)
+
 			# Try to concatenate new data with old data		
 			first_time_stamp_new = new_data['TimeStamp'].iloc[0]
 			if last_time_stamp_prev.day + 1 == first_time_stamp_new.day:
 				new_data = concat_data(prev_data=prev_data, new_data=new_data)
 
+
+
 			# Only save the last 3 days of data
 			new_data = new_data[new_data['TimeStamp'] > now - datetime.timedelta(days=3)]	
-			save_data(new_data)
+			
 
 			return new_data
 		
@@ -92,8 +100,15 @@ def save_data(df):
 		pickle.dump(df,f)
 	df.to_csv('data/log_nordpool.csv')
 
+def load_data():
+	try:
+		with open('data/log_nordpool.pkl', 'rb') as f:
+			df = pickle.load(f)
+	except:
+		df = pd.DataFrame()
+	return df	
+
 def concat_data(prev_data, new_data):	
 	df = pd.concat([prev_data, new_data], axis=0, ignore_index=True)
 	df = df.reset_index(drop=True)
-	df = df.iloc[-96:,]
 	return df

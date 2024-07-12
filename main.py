@@ -9,7 +9,7 @@ import pickle
 from GARO.garo import get_Garo_status, on_off_Garo
 from LEAF.leaf import leaf_status, start_climat_control, stop_climat_control
 from NordPool.nordPool import getDataNordPool
-from CHARGE.charge import get_chargeSchedule, ifCharge, changeChargeStatusGaro, get_button_state, get_now, lowTemp, creta_data_file, set_button_state, connected_to_lan
+from CHARGE.charge import get_chargeSchedule, ifCharge, changeChargeStatusGaro, get_button_state, get_now, lowTemp, create_data_file, set_button_state, connected_to_lan, plot_nordpool_data, plot_data_schedule
 
 print()
 """
@@ -27,8 +27,7 @@ Leafpy: Current url in auth.py is url = "https://gdcportalgw.its-mo.com/api_v210
             custom_sessionid = r.json()['VehicleInfoList']['vehicleInfo'][0]['custom_sessionid']
 	          VIN = r.json()['CustomerInfo']['VehicleInfo']['VIN']
 """
-if os.getenv('PYTHONDEBUG', '0') == '1':
-    test = True
+
 
 if (args_count := len(sys.argv)) > 2:
 	print(f"No more than one argument expected, got {args_count - 1}")
@@ -46,15 +45,17 @@ else:
 		print("Program in normal mode!")
 		test = False
 			
-
+if os.getenv('PYTHONDEBUG', '0') == '1':
+    test = True
 
 try:
 	with open('data/saved_data.pkl', 'rb') as f:
 		file_content = f.read()
 		data = pickle.loads(file_content)
 except:
-	data = creta_data_file()
+	data = create_data_file()
 data['nordpool']['TimeStamp'] = pd.to_datetime(data['nordpool']['TimeStamp'])	
+plot_nordpool_data(data['nordpool'])
 time_to_sleep = 120  # It is needed because asking GARO to often generates problems
 print("Start or restart")
 now, utc_offset = get_now()
@@ -69,8 +70,6 @@ if test:
 	data['schedule'] = schedule
 
 while True:
-
-
 	now, utc_offset = get_now()
 
 	if not connected_to_lan():
@@ -84,6 +83,7 @@ while True:
 			(now - data['nordpool']['TimeStamp'].iloc[0] < datetime.timedelta(hours=0)) :
 
 		nordpool = getDataNordPool(utc_offset=utc_offset, now=now, prev_data=data['nordpool'])
+		plot_nordpool_data(nordpool)
 		
 		last_down_load = datetime.datetime(year=now.year, month=now.month, day=now.day, hour=14)
 		new_download = True
@@ -254,18 +254,31 @@ while True:
 		# remaining hours to charge or still schedule										#
 		#################################################################
 		if data['new_down_load']:
-			if response['auto'] == 1:
+
+			if not data['schedule'].empty:
+				schedule = data['schedule']
+				sub_schedule = schedule[schedule['TimeStamp'] > now]
+				if response['auto'] == 1:
+					pattern = 'auto'
+					hours_to_charged = 12
+				elif response['fast_smart'] == 1:
+					pattern = 'fast_smart'
+					hours_to_charged = len(sub_schedule)
+				elif response['on'] == 1:
+					pattern = 'on'
+					hours_to_charged = len(sub_schedule)
+				elif response['full'] == 1:
+					pattern = 'full'
+					hours_to_charged = len(sub_schedule)
+			else:
 				pattern = 'auto'
-			elif response['fast_smart'] == 1:
-				pattern = 'fast_smart'
-			elif response['on'] == 1:
-				pattern = 'on'
-			elif response['full'] == 1:
-				pattern = 'full'
-			schedule = get_chargeSchedule(hour_to_charged=12, 
+				hours_to_charged = 12
+
+			schedule = get_chargeSchedule(hour_to_charged=hours_to_charged, 
 																								nordpool_data=data['nordpool'], 
 																								now=now, 
-																								pattern=pattern )
+																								pattern=pattern,
+																								set_time=response['set_time'] )
 			data['schedule'] = schedule
 			data['remaining_hours'] = 0
 
@@ -368,7 +381,10 @@ while True:
 	data['new_down_load'] = new_download
 	data['connected'] = connected
 	data['available'] = available
-
+	plot_nordpool_data(data['nordpool'])
+	plot_data_schedule(data['schedule'], data['nordpool'],now)
+	
+	
 	
 	
 	
