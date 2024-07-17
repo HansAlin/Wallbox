@@ -60,20 +60,28 @@ time_to_sleep = 120  # It is needed because asking GARO to often generates probl
 print("Start or restart")
 now, utc_offset = get_now()
 print()
-ac_timeout = now
-# TODO remove after testing
-data['ac'] = 0
+
+if 'set_time' not in data:
+	data['set_time'] = 0
 
 if test:
 	time_to_sleep = 5
 	schedule = pd.DataFrame()
 	data['schedule'] = schedule
+_ = set_button_state({'auto':data['auto'],
+											'full':data['full'],
+											'fast_smart':data['fast_smart'],
+											'on':data['on'],
+											'hours':data['hours'],
+											'set_time':data['set_time'],
 
+})
 while True:
 	now, utc_offset = get_now()
 
 	if not connected_to_lan():
 		time.sleep(time_to_sleep)
+		print()
 		continue
 
 	# If it is more than 24 h since last download, download!
@@ -92,19 +100,17 @@ while True:
 		data['new_down_load'] = new_download
 		
 	connected, available = get_Garo_status()
-	if test:
-		connected = 'CONNECTED'
-		available = 'ALWAYS_ON'
 
 	if connected == None or connected == 'CHARGING_PAUSED':
 		time.sleep(time_to_sleep)
+		print()
 		continue
 	# Response options
 	# connected: "NOT_CONNECTED", "CONNECTED", "DISABLED", 'CHARGING_PAUSED', 'CHARGING_FINISHED', 'CHARGING':
 	# available: "ALWAYS_OFF", "ALWAYS_ON", "SCHEMA":
 	# TODO might need to implement something that takes care of long periods of 'CHARGING_PAUSED'
 
-	if (connected != "NOT_CONNECTED"):
+	if (connected != "NOT_CONNECTED") or (connected != "CHARGING_FINISHED"):
 
 		
 		# Respons from webserver
@@ -125,8 +131,8 @@ while True:
 				response['fast_smart'] == data['fast_smart'] and \
 				response['on'] == data['on'] and \
 				response['hours'] == data['hours'] and \
-				response['ac'] == data['ac'] and \
-				connected == data['connected']:
+				response['set_time'] == data['set_time'] and \
+				response['ac'] == data['ac'] :
 			
 			if  not data['schedule'].empty:
 				charge = ifCharge(charge_schedule=data['schedule'], now=now)
@@ -159,7 +165,8 @@ while True:
 		#################################################################
 		elif (response['fast_smart'] == 1 and data['fast_smart'] != 1 and connected != "CHARGING_FINISHED" ) or \
 			(data['connected'] == "NOT_CONNECTED" and connected != "NOT_CONNECTED" \
-			and data['fast_smart'] == 1 ):
+			and data['fast_smart'] == 1 ) or (response['hours'] != data['hours'] and response['fast_smart'] == 1) or \
+				(response['set_time'] != data['set_time'] and response['fast_smart'] == 1):
 
 			hours = response['hours']
 			schedule = get_chargeSchedule(hour_to_charged=hours, 
@@ -226,23 +233,6 @@ while True:
 
 
 
-		####################     CLIMATE CONTROLL    ####################
-		# The response from webserver have been changed to ac,					#
-		#################################################################
-		if (response['ac'] != data['ac'] and \
-					connected != "NOT_CONNECTED"):	
-			if response['ac'] == 1:
-				_ = start_climat_control(test=test)
-				data['ac'] = 1
-				ac_timeout = now + datetime.timedelta(minutes=59)
-			else:	
-				stop_climat_control(test=test)
-
-				data['ac'] = 0
-
-		if now > ac_timeout and data['ac'] == 1:
-			stop_climat_control(test=test)
-			data['ac'] = 0		
 
 		if not data['schedule'].empty:
 			charge = ifCharge(charge_schedule=data['schedule'], now=now)
@@ -324,8 +314,6 @@ while True:
 																												 test=test,)
 		data['charging'] = charging
 
-		if test:
-			connected = 'CONNECTED'
 
 		###################  IF SCHEDULE IS OUT OF DATE  ###################
 		# If the schedule is out of date, delete it												 #
@@ -336,19 +324,14 @@ while True:
 				data['schedule'] = schedule
 
 
-
-	###################   WHEN CAR IS DISSCONNECTED   ###################
-	#										or charging finished by car											#
-	##################################################################### 	
-				#TODO this is removed  or	connected == "CHARGING_FINISHED" and data['connected'] != "CHARGING_FINISHED" 
-	elif connected == "NOT_CONNECTED"  and data['connected'] != "NOT_CONNECTED" :
-
+	################### WHEN CAR STOPPED CHARGING ###################
+	#																															#
+	#################################################################
+	elif connected == "CHARGING_FINISHED":
+		print("Charging finished!", end=" ")
 		charge = False
 		schedule = pd.DataFrame()
 		remaining_hours = 0
-		if data['ac'] == 1:
-			stop_climat_control(test=test)
-			data['ac'] = 0
 
 		print("Default auto!", end=" ")
 		data['auto'] = 1
@@ -359,8 +342,39 @@ while True:
 		_  = set_button_state({'auto':data['auto'],
 												'fast_smart':data['fast_smart'],
 												'on':data['on'], 
-												'full':data['full'],
-												'ac':data['ac']})
+												'full':data['full']})
+
+		data['schedule'] = schedule
+		data['remaining_hours'] = remaining_hours
+		data['charge'] = charge
+		charging, connected, available = changeChargeStatusGaro(charging=data['charging'], 
+																												 charge=data['charge'], 
+																												 connected=connected, 
+																												 available=available,
+																												 test=test,)
+
+		data['charging'] = charging
+
+	###################   WHEN CAR IS DISSCONNECTED   ###################
+	#										or charging finished by car											#
+	##################################################################### 	
+				#TODO this is removed  or	connected == "CHARGING_FINISHED" and data['connected'] != "CHARGING_FINISHED" 
+	elif connected == "NOT_CONNECTED"  and data['connected'] != "NOT_CONNECTED" :
+
+		charge = False
+		schedule = pd.DataFrame()
+		remaining_hours = 0
+
+		print("Default auto!", end=" ")
+		data['auto'] = 1
+		data['fast_smart'] = 0
+		data['on'] = 0
+		data['full'] = 0
+
+		_  = set_button_state({'auto':data['auto'],
+												'fast_smart':data['fast_smart'],
+												'on':data['on'], 
+												'full':data['full']})
 	
 		data['schedule'] = schedule
 		data['remaining_hours'] = remaining_hours
@@ -381,6 +395,12 @@ while True:
 	data['new_down_load'] = new_download
 	data['connected'] = connected
 	data['available'] = available
+	data['auto'] = response['auto']
+	data['full'] = response['full']
+	data['fast_smart'] = response['fast_smart']
+	data['on'] = response['on']
+	data['hours'] = response['hours']
+	data['set_time'] = response['set_time']
 	plot_nordpool_data(data['nordpool'])
 	plot_data_schedule(data['schedule'], data['nordpool'],now)
 	

@@ -61,6 +61,68 @@ def get_charge_schedule_prev_lowest(nordpool_data, now, df_sub, prev_value_lim):
 
 		return charge_schedule, value_lim
 
+def get_charge_schedule_2(nordpool_data, now, fraction):
+
+	history_data = nordpool_data[nordpool_data['TimeStamp'] < now]
+
+	number_of_history_hours = len(history_data)
+
+	fraction_history_data = history_data.nsmallest(int(number_of_history_hours*fraction), 'value')
+
+	max_value = fraction_history_data['value'].max()
+
+	futrue_data = nordpool_data[nordpool_data['TimeStamp'] >= datetime.datetime(year=now.year, month=now.month, day=now.day, hour=now.hour)] 
+
+	charge_schedule = futrue_data[futrue_data['value'] < max_value]
+
+	return charge_schedule
+
+def get_charge_schedule_3(nordpool_data, now, fraction):
+
+	history_data = nordpool_data[nordpool_data['TimeStamp'] < now]
+
+	future_data = nordpool_data[nordpool_data['TimeStamp'] >= now]
+
+	furture_hours = len(future_data)
+
+	number_of_history_hours = len(history_data)
+
+	number_of_history_chunks = int(number_of_history_hours/furture_hours)
+
+	fraction_hours = int(furture_hours*fraction)
+
+	average_values = np.zeros(fraction_hours)
+
+	for i in range(0,furture_hours*number_of_history_chunks, furture_hours):
+		sub_data = history_data.iloc[i:i+furture_hours]
+		lowest_fraction = sub_data.nsmallest(fraction_hours, 'value')
+		average_value = lowest_fraction['value'].values
+		average_values += average_value
+	
+	average_values = average_values/number_of_history_chunks
+	value_lim = average_values[-1]
+
+	first_time = True
+	charge_schedule = pd.DataFrame()
+
+	for lowest in range(1, furture_hours + 1):
+		for average_value in average_values:
+
+			smallest_row = future_data.nsmallest(lowest, 'value').iloc[-1]
+			
+			if smallest_row['value'] < average_value:
+				if first_time:
+					charge_schedule = pd.DataFrame(smallest_row).T
+					first_time = False
+				else:
+					charge_schedule.loc[len(charge_schedule)] = smallest_row
+				break
+	
+	charge_schedule = charge_schedule.sort_values(by='TimeStamp')
+
+	return charge_schedule, value_lim
+
+
 
 
 
@@ -78,7 +140,7 @@ def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern, set_time=No
 			remaining_hours: if not all charging hours are fitted in the first schedule
 
 	"""
-	print(f"Getting charging schedule at: {now}", end=" ")
+	print(f"Getting charging schedule at: {now}")
 
 	#TODO Creat a function that calculates the value lim besed on previus week data
 	# value_lim = get_value_lim(nordpool_data, now)
@@ -105,8 +167,8 @@ def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern, set_time=No
 
 	elif pattern == 'auto':
 		#charge_schedule, value_lim = get_charge_schedule_prev_mean(nordpool_data,value_lim,now, hours_to_last_time_stamp, df_sub)
-		charge_schedule, value_lim = get_charge_schedule_prev_lowest(nordpool_data, now, df_sub, value_lim)
-
+		#charge_schedule, value_lim = get_charge_schedule_prev_lowest(nordpool_data, now, df_sub, value_lim)
+		charge_schedule, value_lim = get_charge_schedule_3(nordpool_data, now, 0.3)
 
 	elif pattern == 'full':
 		if set_time == None:
@@ -135,7 +197,8 @@ def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern, set_time=No
 	charge_schedule = charge_schedule.sort_values(by='TimeStamp')
 
 
-	print(f"Value lim: {value_lim}, Charging schedule:")
+	print(f"Value lim: {value_lim}")
+	print("Charging schedule:")
 	print(charge_schedule)
 	plot_data_schedule(charge_schedule, nordpool_data, now, save_uniqe_plots=True)
 	with  open('data/schedule_log.csv', 'a') as f:
@@ -171,7 +234,6 @@ def plot_data_schedule(charge_schedule, nordpool_data, now, save_uniqe_plots=Fal
 	ax.scatter(x1, y1 , color='blue')
 	if not charge_schedule.empty:
 		x2 = charge_schedule['TimeStamp'].values
-		print(charge_schedule.keys())
 		y2 = charge_schedule['value'].values
 		ax.scatter(x2, y2, color='green')
 	ax.set_title(f'Schedule')
@@ -370,6 +432,7 @@ def create_data_file():
 	data['charging'] = True
 	data['connected'] = 0
 	data['hours'] = 0
+	data['set_time'] = 0
 
 	return data
 

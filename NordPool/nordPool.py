@@ -20,6 +20,7 @@ def getDataNordPool(utc_offset, now, prev_data):
 	try:
 		if prev_data.empty:
 			new_data = get_price_from_date(now=now, utc_offset=utc_offset)
+			# Save new data
 			log_nord_pool_data = load_data()
 			new_log_nord_pool_data = concat_data(prev_data=log_nord_pool_data, new_data=new_data)
 			save_data(new_log_nord_pool_data)
@@ -40,6 +41,7 @@ def getDataNordPool(utc_offset, now, prev_data):
 				if new_data['value'].iloc[0] > 10000:
 					new_data = get_price_from_date(now=now, utc_offset=utc_offset)
 
+			#Save new data
 			log_nord_pool_data = load_data()
 			new_log_nord_pool_data = concat_data(prev_data=log_nord_pool_data, new_data=new_data)
 			save_data(new_log_nord_pool_data)
@@ -52,7 +54,7 @@ def getDataNordPool(utc_offset, now, prev_data):
 
 
 			# Only save the last 3 days of data
-			new_data = new_data[new_data['TimeStamp'] > now - datetime.timedelta(days=3)]	
+			new_data = new_data[new_data['TimeStamp'] > now - datetime.timedelta(days=4)]	
 			
 
 			return new_data
