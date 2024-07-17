@@ -5,14 +5,23 @@ from werkzeug.utils import secure_filename
 import os
 
 
-auto_Sts = 1
-full_Sts = 0
-fast_smart_Sts = 0
-now_Sts = 0
-set_time = 12
-hours = 5
-soc = 0
-ac = 0
+try:
+	with open('web_data.txt', 'r') as f:
+		auto_Sts = int(f.readline())
+		full_Sts = int(f.readline())
+		fast_smart_Sts = int(f.readline())
+		now_Sts = int(f.readline())
+		hours = int(f.readline())
+		set_time = int(f.readline())
+
+except FileNotFoundError:
+	auto_Sts = 1
+	full_Sts = 0
+	fast_smart_Sts = 0
+	now_Sts = 0
+	set_time = 12
+	hours = 5
+
 
 app = Flask(__name__)
 
@@ -24,8 +33,7 @@ def index():
 	global full_Sts
 	global fast_smart_Sts
 	global now_Sts
-	global soc
-	global ac
+
 
 	templateData = {
 			'title' : 'Charger',
@@ -36,8 +44,6 @@ def index():
 			'hours':hours,
 			'set_time': set_time,
 			'image_filename': 'image.png',
-			'soc': soc,
-			'ac': ac
 			}
 
 	return render_template('index.html',  **templateData)
@@ -50,9 +56,6 @@ def action(deviceName, action):
 	global now_Sts
 	global hours
 	global set_time
-	global soc
-	global ac
-
 
 	if deviceName == 'auto':
 
@@ -102,24 +105,6 @@ def action(deviceName, action):
 			print('Not  charging on demand')
 			now_Sts = 0
 
-	if deviceName == 'ac':
-		
-		if action == 'on':
-			print("Climate is on and mode to now!")
-			ac = 1
-			fast_smart_Sts = 0
-			full_Sts = 0
-			auto_Sts = 0
-			now_Sts = 1
-
-		if action == 'off':
-			print('Climate is off and mode to auto!')
-			ac = 0
-			fast_smart_Sts = 0
-			full_Sts = 0
-			auto_Sts = 1
-			now_Sts = 0
-
 
 	templateData = {
 		'auto' : auto_Sts,
@@ -128,9 +113,15 @@ def action(deviceName, action):
 		'on' : now_Sts,
 		'hours' : hours,
 		'set_time': set_time,
-		'soc': soc,
-		'ac': ac
 		}
+
+	with open('web_data.txt', 'w') as f:
+		f.write(str(auto_Sts) + '\n')
+		f.write(str(full_Sts) + '\n')
+		f.write(str(fast_smart_Sts) + '\n')
+		f.write(str(now_Sts) + '\n')
+		f.write(str(hours) + '\n')
+		f.write(str(set_time) + '\n')
 	
 	return render_template('index.html', **templateData)
 
@@ -144,8 +135,6 @@ def get_status():
 	global full_Sts
 	global hours
 	global set_time
-	global soc
-	global ac
 
 	templateData = {
 			'auto': auto_Sts,
@@ -154,8 +143,6 @@ def get_status():
 			'on': now_Sts,
 			'hours':hours,
 			'set_time': set_time,
-			'soc': soc,
-			'ac': ac
 				}
 	return jsonify(templateData)  # Convert the templateData dictionary to JSON and return it
 
@@ -181,8 +168,6 @@ def update_time():
         'hours':hours,
         'set_time': set_time,
         'image_filename': 'image.png',
-        'soc': soc,
-        'ac': ac
     }
     return render_template('index.html',  **templateData)
 
@@ -194,8 +179,6 @@ def set_state():
 	global now_Sts
 	global set_time
 	global hours
-	global soc
-	global ac
 
 	data = request.get_json()
 
@@ -212,10 +195,7 @@ def set_state():
 			hours = data['hours']	
 		if 'set_time' in data:
 			set_time = data['set_time']
-		if 'soc' in data:
-			soc = data['soc']	
-		if 'ac' in data:
-			ac = data['ac']	
+
 
 	templateData = {
 		'auto' : auto_Sts,
@@ -224,8 +204,6 @@ def set_state():
 		'on' : now_Sts,
 		'set_time': set_time,
 		'hours' : hours,
-		'soc': soc,
-		'ac': ac
 		}		
 	
 	return render_template('index.html', **templateData)

@@ -119,9 +119,9 @@ while True:
 		# If no response
 		if response == None:
 			time.sleep(time_to_sleep)
+			print()
 			continue
 
-		status_quo = False
 
 		#########################################################
 		# If everthing was like last time										 		#	
@@ -131,15 +131,9 @@ while True:
 				response['fast_smart'] == data['fast_smart'] and \
 				response['on'] == data['on'] and \
 				response['hours'] == data['hours'] and \
-				response['set_time'] == data['set_time'] and \
-				response['ac'] == data['ac'] :
+				response['set_time'] == data['set_time'] :
 			
-			if  not data['schedule'].empty:
-				charge = ifCharge(charge_schedule=data['schedule'], now=now)
-			else:
-				charge = False
-			
-			data['charge'] = charge
+			print("No change!", end=" ")
 
 		######################   AUTO         #########################	
 		# The response from webserver have been changed to auto,  		#
@@ -232,12 +226,12 @@ while True:
 			data['charging'] = True
 
 
-
-
-		if not data['schedule'].empty:
+		if  not data['schedule'].empty:
 			charge = ifCharge(charge_schedule=data['schedule'], now=now)
-			data['charge'] = charge
-
+		else:
+			charge = False
+		
+		data['charge'] = charge
 
 		####################     NEW DOWNLOAD      ######################
 		# If  new data is downloaded from nordpool. And there is still 	#
@@ -283,12 +277,12 @@ while True:
 			print("Default auto!", end=" ")
 			_  = set_button_state({'auto':1,'fast_smart':0,'on':0, 'full':0})
 
-		data['auto'] = response['auto']
-		data['full'] = response['full']
-		data['fast_smart'] = response['fast_smart']
-		data['on'] = response['on']
-		data['hours'] = response['hours']
-		data['connected'] = connected
+		# data['auto'] = response['auto']
+		# data['full'] = response['full']
+		# data['fast_smart'] = response['fast_smart']
+		# data['on'] = response['on']
+		# data['hours'] = response['hours']
+		# data['connected'] = connected
 
 		###############      LOW TEMP			###############################
 		# If the temperature is low, charge the car!										#
@@ -301,19 +295,6 @@ while True:
 						print(" and charging full!", end=" ")
 						charge = True
 						data['charge'] = charge
-
-
-
-		###################   UPDATE CHARGE STATUS   ########################
-		#																																		#
-		#####################################################################
-		charging, connected, available = changeChargeStatusGaro(charging=data['charging'], 
-																												 charge=data['charge'], 
-																												 connected=connected, 
-																												 available=available,
-																												 test=test,)
-		data['charging'] = charging
-
 
 		###################  IF SCHEDULE IS OUT OF DATE  ###################
 		# If the schedule is out of date, delete it												 #
@@ -347,13 +328,6 @@ while True:
 		data['schedule'] = schedule
 		data['remaining_hours'] = remaining_hours
 		data['charge'] = charge
-		charging, connected, available = changeChargeStatusGaro(charging=data['charging'], 
-																												 charge=data['charge'], 
-																												 connected=connected, 
-																												 available=available,
-																												 test=test,)
-
-		data['charging'] = charging
 
 	###################   WHEN CAR IS DISSCONNECTED   ###################
 	#										or charging finished by car											#
@@ -379,17 +353,17 @@ while True:
 		data['schedule'] = schedule
 		data['remaining_hours'] = remaining_hours
 		data['charge'] = charge
-		
-		charging, connected, available = changeChargeStatusGaro(charging=data['charging'], 
-																												 charge=data['charge'], 
-																												 connected=connected, 
-																												 available=available,
-																												 test=test,)
-
-		data['charging'] = charging
 	
 
-
+	###################   UPDATE CHARGE STATUS   ########################
+	#																																		#
+	#####################################################################
+	charging, connected, available = changeChargeStatusGaro(charging=data['charging'], 
+																												charge=data['charge'], 
+																												connected=connected, 
+																												available=available,
+																												test=test,)
+	data['charging'] = charging
 
 	new_download = False   # After the first loop of new data it turns to old
 	data['new_down_load'] = new_download
