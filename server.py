@@ -23,7 +23,7 @@ def index():
 @app.route('/<deviceName>/<action>')
 def action(deviceName, action):
     if action == 'on':
-        settings.update({key: 0 for key in settings.keys() if key != 'hours' and key != 'set_time'})
+        settings.update({key: 0 for key in settings.keys() if key != 'hours' and key != 'set_time' and key != 'fas_value' and key != 'kwh_per_week'})
         settings[deviceName] = 1
     elif action == 'off':
         settings[deviceName] = 0

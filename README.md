@@ -16,7 +16,7 @@ In order to make the program work you have to create a config.py file and store 
 
 The first option is to set the Wallbox to "Auto." This option will take the lowest value of future data and compare it to the lowest value in each time window of the same size as the number of future hours. It will then take the average value of these lowest values. If the lowest value from the future data is lower than the average value of the previous lowest hours, that time is added to the schedule.
 
-In other words, it checks whether the future lowest value is lower than the historical lowest value (with history spanning a maximum of 4 days). The number of hours being checked is based on how many hours the car is needed per week. The hours needed per week determine a fraction that is used to decide how many hours the Wallbox should aim for each day.
+In other words, it checks whether the future lowest value is lower than the historical lowest value (with a history spanning a maximum of 4 days). The number of hours being checked is based on how many hours the car is needed per week. The hours needed per week determine a fraction that is used to decide how many hours the Wallbox should aim for each day.
 
 Under "KWH per Week," you determine the number of kWh needed during a 5-day cycle. 
 
@@ -28,7 +28,7 @@ If turned on, the Wallbox will try to find "Hours needed" within "Charged within
 
 # Now
 
-This option turns on charging for 16 hours and then switches to "Auto" afterwards.
+This option turns on charging for 16 hours and then switches to "Auto" afterward.
 
 
 ```

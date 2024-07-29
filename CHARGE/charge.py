@@ -161,7 +161,7 @@ def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern, set_time=No
 	print(f"Value lim: {value_lim}")
 	print("Charging schedule:")
 	print(charge_schedule)
-	plot_data_schedule(charge_schedule, nordpool_data, now, save_uniqe_plots=True)
+	plot_data_schedule(charge_schedule, nordpool_data, now, save_uniqe_plots=False)
 	if not charge_schedule.empty:
 		with  open('data/schedule_log.csv', 'a') as f:
 			f.write(str({'TimeStamp':now,'schedule':charge_schedule['TimeStamp']} ))

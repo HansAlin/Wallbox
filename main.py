@@ -13,26 +13,21 @@ from CHARGE.charge import get_chargeSchedule, ifCharge, changeChargeStatusGaro, 
 import random
 
 
-print()
 """
-Leafpy: Current url in auth.py is url = "https://gdcportalgw.its-mo.com/api_v210707_NE/gdc/UserLoginRequest.php"
-        and in leaf.py BASE_URL = 'https://gdcportalgw.its-mo.com/api_v210707_NE/gdc/'
-        these two url:s might have changed
-        And in auth.py following changes have to be made:
-        From:
-            if region_code == 'NE':
-              custom_sessionid = r.json()['vehicleInfo'][0]['custom_sessionid']
-            else:
-              custom_sessionid = r.json()['VehicleInfoList']['vehicleInfo'][0]['custom_sessionid']
-            VIN = r.json()['CustomerInfo']['VehicleInfo']['VIN']
-        To: 
-            custom_sessionid = r.json()['VehicleInfoList']['vehicleInfo'][0]['custom_sessionid']
-	          VIN = r.json()['CustomerInfo']['VehicleInfo']['VIN']
+
 """
 
 
 if os.getenv('PYTHONDEBUG', '0') == '1':
     test = True
+else:
+		argument = sys.argv[0].lower()
+		if argument == "test":
+			print("Program in Test mode!")
+			test = True
+		else:
+			print("Program in normal mode!")
+			test = False	
 
 if test:
 	print("Test mode")
@@ -120,7 +115,7 @@ while True:
 			response['auto'] = 0
 			response['fast_smart'] = 0
 			response['on'] = 0
-			pattern = random.choice(['auto', 'fast_smart', 'on'])
+			pattern = random.choice(['auto'])
 			response[pattern] = 1
 
 			hours = random.choice([3, 20])
@@ -355,9 +350,9 @@ while True:
 	data['set_time'] = response['set_time']
 	data['fas_value'] = response['fas_value']
 	data['kwh_per_week'] = response['kwh_per_week']
-	if not test:
-		plot_nordpool_data(data['nordpool'])
-		plot_data_schedule(data['schedule'], data['nordpool'],now)
+	
+	plot_nordpool_data(data['nordpool'])
+	plot_data_schedule(data['schedule'], data['nordpool'],now)
 
 	with open('data/saved_data.pkl', 'wb') as f:
 			pickle.dump(data,f)
