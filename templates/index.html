@@ -17,48 +17,8 @@
         <p>Battery status: {{soc}} %</p>  -->
     </header>
    
-    
-    <!-- <section class="control-section">
-        <h3>Full Charge</h3>
-        {% if full == 1 %}
-            <h2> ON </h2>
-            <a href="/full/off" class="button">TURN OFF</a>
-        {% else %}
-        <h2> OFF </h2>
-            <a href="/full/on" class="button">TURN ON</a>
-        {% endif %}
-        
-        <p>Fully charged at: {{ '%02d' % set_time }}:00</p> 
-        <form action="/set_time" method="post">
-            <label for="set_time">Change time:</label>
-            <select id="set_time" name="set_time">
-                {% for i in range(24) %}
-                    {% if i == set_time %}
-                        <option value="{{ '%02d' % i }}:00" selected>{{ '%02d' % i }}:00</option>
-                    {% else %}
-                        <option value="{{ '%02d' % i }}:00">{{ '%02d' % i }}:00</option>
-                    {% endif %}
-                {% endfor %}
-            </select>
-            <button type="submit" class="button">Set Time</button>
-        </form>
 
-    </section> -->
-
-
-    <!-- <section class="control-section">
-        <h3>Climate control</h3>
-        {% if ac == 1 %}
-            <h2> ON </h2>
-            <a href="/ac/off" class="button">TURN OFF</a>
-        {% elif ac == 0 %}
-            <h2> OFF </h2>
-            <a href="/ac/on" class="button">TURN ON</a>
-        {% else %}
-            <h2> Error: Unexpected value for 'ac': {{ ac }} </h2>
-        {% endif %}
-    </section> -->
-
+   
     <section class="control-section">
         <h3>Auto</h3>
         {% if auto == 1 %}
@@ -68,7 +28,23 @@
         <h2> OFF </h2>
             <a href="/auto/on" class="button">TURN ON</a>
         {% endif %}
+
+        <form action="/set_value" method="post">
+            <h3>KWH per Week</h3>
+            <input type="number" id="kwh_per_week" name="kwh_per_week" value="{{ kwh_per_week }}">
+            <button type="submit" class="button">Submit</button>
+        </form>
+
+        <form action="/set_value" method="post">
+            <h3>Current option</h3>
+            <select name="fas_value" id="fas_value">
+                <option value=3 {% if fas_value == 3 %}selected{% endif %}>FAS 3</option>
+                <option value=1 {% if fas_value == 1 %}selected{% endif %}>FAS 1</option>
+            </select>    
+            <button type="submit" class="button">Submit</button>
+        </form>
     </section>
+    
     
     <section class="control-section">
         <h3>Fast Smart Charge</h3>
@@ -85,6 +61,7 @@
             <input type="text" id="hours" name="hours" value="{{ hours }}">
             <button type="submit" class="button">Submit</button>
         </form>
+        
         <p>Charged within: {{ '%02d' % set_time }}:00 h</p> 
         <form action="/set_time" method="post">
             <label for="set_time">Change time:</label>

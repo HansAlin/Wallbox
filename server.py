@@ -1,220 +1,115 @@
 from flask import Flask, render_template, request, jsonify, redirect
-import datetime
-import time
-from werkzeug.utils import secure_filename
 import os
-
-
-try:
-	with open('web_data.txt', 'r') as f:
-		auto_Sts = int(f.readline())
-		full_Sts = int(f.readline())
-		fast_smart_Sts = int(f.readline())
-		now_Sts = int(f.readline())
-		hours = int(f.readline())
-		set_time = int(f.readline())
-
-except FileNotFoundError:
-	auto_Sts = 1
-	full_Sts = 0
-	fast_smart_Sts = 0
-	now_Sts = 0
-	set_time = 12
-	hours = 5
-
+from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 
+# Initialize global variables
+try:
+    with open('web_data.txt', 'r') as f:
+        settings = {key: int(value) for key, value in zip(['auto', 'full', 'fast_smart', 'on', 'hours', 'set_time', 'fas_value', 'kwh_per_week'], f.readlines())}
+except FileNotFoundError:
+    settings = {'auto': 1, 'full': 0, 'fast_smart': 0, 'on': 0, 'hours': 5, 'set_time': 12, 'fas_value': 1, 'kwh_per_week': 50}
+
+def update_file():
+    with open('web_data.txt', 'w') as f:
+        for key, value in settings.items():
+            f.write(str(value) + '\n')
+
 @app.route('/')
 def index():
-	global set_time
-	global hours
-	global auto_Sts
-	global full_Sts
-	global fast_smart_Sts
-	global now_Sts
-
-
-	templateData = {
-			'title' : 'Charger',
-			'auto' : auto_Sts,
-			'full': full_Sts,
-			'fast_smart' : fast_smart_Sts,
-			'on': now_Sts,
-			'hours':hours,
-			'set_time': set_time,
-			'image_filename': 'image.png',
-			}
-
-	return render_template('index.html',  **templateData)
+    return render_template('index.html', title='Charger', image_filename='image.png', **settings)
 
 @app.route('/<deviceName>/<action>')
 def action(deviceName, action):
-	global auto_Sts
-	global full_Sts
-	global fast_smart_Sts
-	global now_Sts
-	global hours
-	global set_time
+    if action == 'on':
+        settings.update({key: 0 for key in settings.keys() if key != 'hours' and key != 'set_time'})
+        settings[deviceName] = 1
+    elif action == 'off':
+        settings[deviceName] = 0
 
-	if deviceName == 'auto':
-
-		if action == 'on':
-			print(f'Auto is on!')
-			auto_Sts = 1
-			full_Sts = 0
-			fast_smart_Sts = 0
-			now_Sts = 0
-		if action == 'off':
-			print(f'Auto is off!')
-			auto_Sts = 0
-
-	if deviceName == 'full':
-
-		if action == 'on':
-			print("Charging to full!")
-			full_Sts = 1
-			auto_Sts = 0
-			fast_smart_Sts = 0
-			now_Sts = 0
-		if action == 'off':
-			print("Not charging to full!")
-			full_Sts = 0
-
-	if deviceName == 'fast_smart':
-
-		if action == 'on':
-			print("Fast smart is on!")
-			fast_smart_Sts = 1
-			auto_Sts = 0
-			full_Sts = 0
-			now_Sts = 0
-		if action == 'off':
-			print("Fast smart is off!")
-			fast_smart_Sts = 0
-
-	if deviceName == 'now':
-
-		if action == 'on':
-			print("Charging now!")
-			now_Sts = 1
-			fast_smart_Sts = 0
-			full_Sts = 0
-			auto_Sts = 0
-		if action == 'off':
-			print('Not  charging on demand')
-			now_Sts = 0
-
-
-	templateData = {
-		'auto' : auto_Sts,
-		'full': full_Sts,
-		'fast_smart' : fast_smart_Sts,
-		'on' : now_Sts,
-		'hours' : hours,
-		'set_time': set_time,
-		}
-
-	with open('web_data.txt', 'w') as f:
-		f.write(str(auto_Sts) + '\n')
-		f.write(str(full_Sts) + '\n')
-		f.write(str(fast_smart_Sts) + '\n')
-		f.write(str(now_Sts) + '\n')
-		f.write(str(hours) + '\n')
-		f.write(str(set_time) + '\n')
-	
-	return render_template('index.html', **templateData)
-
+    update_file()
+    return render_template('index.html', **settings)
 
 
 @app.route('/get_status', methods=['GET'])
 def get_status():
-	global auto_Sts
-	global fast_smart_Sts
-	global now_Sts
-	global full_Sts
-	global hours
-	global set_time
-
-	templateData = {
-			'auto': auto_Sts,
-			'full': full_Sts,
-			'fast_smart':fast_smart_Sts,
-			'on': now_Sts,
-			'hours':hours,
-			'set_time': set_time,
-				}
-	return jsonify(templateData)  # Convert the templateData dictionary to JSON and return it
+    return jsonify(settings)
 
 @app.route('/set_value', methods=['POST'])
 def set_value():
-	global hours
-	new_value = request.form['hours']
-	try:
-		hours = int(new_value)
-	except ValueError:
-		hours ="0"
-	return redirect('/')
+    global hours, fas_value, kwh_per_week
+
+    if 'hours' in request.form:
+        new_value = request.form['hours']
+        try:
+            hours = int(new_value)
+        except ValueError:
+            hours = 0
+        settings['hours'] = hours
+
+    if 'fas_value' in request.form:
+        fas_value = request.form['fas_value']
+        try:
+            fas_value = int(fas_value)
+        except ValueError:
+            fas_value = 1
+        settings['fas_value'] = fas_value
+
+    if 'kwh_per_week' in request.form:
+        kwh_per_week = request.form['kwh_per_week']
+        try:
+            kwh_per_week = int(kwh_per_week)
+        except ValueError:
+            kwh_per_week = 50
+        settings['kwh_per_week'] = kwh_per_week
+
+    update_file()
+    return redirect('/')
 
 @app.route('/set_time', methods=['POST'])
-def update_time():
-    set_time = int(request.form.get('set_time')[:2])  # Extract hours from "HH:00"
-    templateData = {
-        'title' : 'Charger',
-        'auto' : auto_Sts,
-        'full': full_Sts,
-        'fast_smart' : fast_smart_Sts,
-        'on': now_Sts,
-        'hours':hours,
-        'set_time': set_time,
-        'image_filename': 'image.png',
-    }
-    return render_template('index.html',  **templateData)
+def set_time():
+    global set_time
+    new_time = request.form['set_time']
+    try:
+        # Extract the hour from the submitted time (format: "HH:00")
+        set_time = int(new_time.split(":")[0])
+    except ValueError:
+        set_time = 0
+
+    settings['set_time'] = set_time
+    update_file()
+    return redirect('/')
+
+# @app.route('/set_state', methods=['POST'])
+# def set_state():
+#     global auto_Sts, full_Sts, fast_smart_Sts, now_Sts, set_time, hours
+#     data = request.get_json()
+#     if data:
+#         if 'auto' in data:
+#             auto_Sts = data['auto']
+#         if 'full' in data:
+#             full_Sts = data['full']    
+#         if 'fast_smart' in data:
+#             fast_smart_Sts = data['fast_smart']
+#         if 'on' in data:
+#             now_Sts = data['on']        
+#         if 'hours' in data:
+#             hours = data['hours']    
+#         if 'set_time' in data:
+#             set_time = data['set_time']
+#     update_file()
+#     return redirect('/')
 
 @app.route('/set_state', methods=['POST'])
 def set_state():
-	global auto_Sts
-	global full_Sts
-	global fast_smart_Sts
-	global now_Sts
-	global set_time
-	global hours
-
-	data = request.get_json()
-
-	if data:
-		if 'auto' in data:
-			auto_Sts = data['auto']
-		if 'full' in data:
-			full_Sts = data['full']	
-		if 'fast_smart' in data:
-			fast_smart_Sts = data['fast_smart']
-		if 'on' in data:
-			now_Sts = data['on']		
-		if 'hours' in data:
-			hours = data['hours']	
-		if 'set_time' in data:
-			set_time = data['set_time']
-
-
-	templateData = {
-		'auto' : auto_Sts,
-		'full': full_Sts,
-		'fast_smart' : fast_smart_Sts,
-		'on' : now_Sts,
-		'set_time': set_time,
-		'hours' : hours,
-		}		
-	
-	return render_template('index.html', **templateData)
-
-@app.route('/set_time', methods=['POST'])
-def set_time_route():
-	global set_time
-	selected_time = request.form['set_time']
-	set_time, _ = map(int, selected_time.split(':'))  # split the selected time into hours and minutes
-
-	return redirect('/')
+    data = request.get_json()
+    if data:
+        for key in ['auto', 'full', 'fast_smart', 'on', 'hours', 'set_time']:
+            if key in data:
+                settings[key] = data[key]
+    update_file()
+    return redirect('/')
 
 @app.route('/upload_image', methods=['POST'])
 def upload_image():
@@ -226,8 +121,4 @@ def upload_image():
     return '', 200
 
 if __name__ == '__main__':
-	app.run(debug=True, port=5000, host='0.0.0.0')
-
-
-
-
+    app.run(debug=True, port=5000, host='0.0.0.0')

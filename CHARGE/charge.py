@@ -10,91 +10,47 @@ import time
 from matplotlib.dates import DateFormatter
 
 from GARO.garo import on_off_Garo, get_Garo_status
-from CONFIG.config import low_temp_url, server_url, tz_region
-# from LEAF.leaf import leaf_status
+from CONFIG.config import low_temp_url, server_url, tz_region, router_url
 
 
-def get_charge_schedule_prev_mean(nordpool_data, prev_value_lim, now, hours_to_last_time_stamp, df_sub):
+
+def get_auto_charge_schedule(nordpool_data, now, fraction):
+	"""
+		This function creates a charging schedule based on prevous data from nordpool (nordpool_data).
+		It takes n lowest value from future data and compares it to the average of the lowest fraction of the history data.
+		If the value is lower than the average it is added to the schedule otherwise the next lowest value is checked.
+
+		Arguments:
+			nordpool_data: data from nordpool
+			now: current time
+			fraction: the fraction of the avalibale hours to use in the schedule
+		Returns:
+			schedule
+			value_lim: the value of the last value in the average of the lowest fraction of the history
+		
 		"""
-			This function calculates the previuos mean and creates a schedule based
-			how many hours adds up to the mean value
 
-			Args:
-				nordpool_data: data from nordpool
-				prev_value_lim: maximum value alowed for charging
-				now: current time
-				hours_to_last_time_stamp: hours to the last time stamp in nordpool data
-				df_sub: subset of nordpool data from now to the last time stamp
-
-			Returns:
-				charge_schedule: schedule for charging
-				value_lim: value limit for charging
-		"""
-		prev_data = nordpool_data[nordpool_data['TimeStamp'] < now]
-		value_lim = prev_data['value'].mean()
-
-		value_lim = min([value_lim, prev_value_lim])
-		charge_schedule = pd.DataFrame()
-		schedule_found = False
-		hours_to_charge = hours_to_last_time_stamp
-		while not schedule_found:
-
-			df_sub_smallest = df_sub.nsmallest(hours_to_charge, 'value')
-			value_sum = df_sub_smallest['value'].sum()
-			if value_sum < value_lim:
-				charge_schedule = df_sub_smallest
-				schedule_found = True
-
-			hours_to_charge = hours_to_charge - 1
-
-		return charge_schedule, value_lim	
-
-def get_charge_schedule_prev_lowest(nordpool_data, now, df_sub, prev_value_lim):
-		"""
-			This
-		"""
-		prev_data = nordpool_data[nordpool_data['TimeStamp'] < now]
-		sub_schedule = prev_data.nsmallest(24, 'value')	
-		value_lim = sub_schedule['value'].mean()
-		value_lim = min([value_lim, prev_value_lim])
-		charge_schedule = df_sub[df_sub['value'] < value_lim]
-
-		return charge_schedule, value_lim
-
-def get_charge_schedule_2(nordpool_data, now, fraction):
-
+	# Get future ´data and history data
 	history_data = nordpool_data[nordpool_data['TimeStamp'] < now]
-
-	number_of_history_hours = len(history_data)
-
-	fraction_history_data = history_data.nsmallest(int(number_of_history_hours*fraction), 'value')
-
-	max_value = fraction_history_data['value'].max()
-
-	futrue_data = nordpool_data[nordpool_data['TimeStamp'] >= datetime.datetime(year=now.year, month=now.month, day=now.day, hour=now.hour)] 
-
-	charge_schedule = futrue_data[futrue_data['value'] < max_value]
-
-	return charge_schedule
-
-def get_charge_schedule_3(nordpool_data, now, fraction):
-
-	history_data = nordpool_data[nordpool_data['TimeStamp'] < now]
-
 	future_data = nordpool_data[nordpool_data['TimeStamp'] >= now]
 
+	# Get the number of hours in the future and history
 	furture_hours = len(future_data)
+	history_hours = len(history_data)
 
-	number_of_history_hours = len(history_data)
+	# Get the number of history chunks each chunk is furture_hours long
+	# unless the history is shorter than the future
+	number_of_history_chunks = max(int(history_hours/furture_hours),1)
+	chunk_hours = int(min([history_hours, furture_hours]))
 
-	number_of_history_chunks = int(number_of_history_hours/furture_hours)
+	# Number of hours to use in the future
+	fraction_hours = max(int(furture_hours*fraction),1)
 
-	fraction_hours = int(furture_hours*fraction)
-
+	# Get the average value of the lowest fraction of the history data
 	average_values = np.zeros(fraction_hours)
 
-	for i in range(0,furture_hours*number_of_history_chunks, furture_hours):
-		sub_data = history_data.iloc[i:i+furture_hours]
+	for i in range(0,chunk_hours*number_of_history_chunks, chunk_hours):
+		sub_data = history_data.iloc[i:i+chunk_hours]
 		lowest_fraction = sub_data.nsmallest(fraction_hours, 'value')
 		average_value = lowest_fraction['value'].values
 		average_values += average_value
@@ -103,7 +59,7 @@ def get_charge_schedule_3(nordpool_data, now, fraction):
 	value_lim = average_values[-1]
 
 	first_time = True
-	charge_schedule = pd.DataFrame()
+	charge_schedule = pd.DataFrame(columns=['TimeStamp', 'value'])
 
 	for lowest in range(1, furture_hours + 1):
 		for average_value in average_values:
@@ -117,16 +73,57 @@ def get_charge_schedule_3(nordpool_data, now, fraction):
 				else:
 					charge_schedule.loc[len(charge_schedule)] = smallest_row
 				break
-	
+
 	charge_schedule = charge_schedule.sort_values(by='TimeStamp')
 
 	return charge_schedule, value_lim
 
+def get_fast_smart_schedule(nordpool_data, now, hour_to_charged, charge_limit, set_time=None):
+	"""
+		This function creates a charging schedule based on data from nordpool (nordpool_data)
+		It creates a schedule that with in the set_time will charge the car for hour_to_charged hours
+		Arguments:
+			nordpool_data: data from nordpool
+			now: current time
+			hour_to_charged: hours for setting schedule
+			charge_limit: value limit for charging, e.g. 89 means that the car will not charge if the value is above 89
+			set_time: hours to the car should be charged
+
+		Returns:
+			schedule
+			value_lim: the value of the last value in the average of the lowest fraction of the history
+	"""
+
+	df_sub = nordpool_data[nordpool_data['TimeStamp'] >= datetime.datetime(year=now.year, month=now.month, day=now.day, hour=now.hour)] 
+
+			# TODO Still uses all data and not a small sub set
+	if hour_to_charged > charge_limit:
+		stop_charge = now + datetime.timedelta(hours=hour_to_charged)
+		charge_schedule = df_sub[df_sub['TimeStamp'] < stop_charge]
+	else:
+		df_sub_sub = df_sub[df_sub['TimeStamp'] < now + datetime.timedelta(hours=set_time)]
+		charge_schedule = df_sub_sub.nsmallest(hour_to_charged, 'value')
+	print(f"Set time: {set_time}, ", end=" ")
+	charge_schedule = charge_schedule.sort_values(by='TimeStamp')
+	value_lim = charge_schedule.nlargest(1, 'value')['value'].values[0]
+
+	return charge_schedule, value_lim
+
+def get_on_charge_schedule(nordpool_data, now, hour_to_charged):
+
+		df_sub = nordpool_data[nordpool_data['TimeStamp'] >= datetime.datetime(year=now.year, month=now.month, day=now.day, hour=now.hour)] 
+		hours_on = hour_to_charged
+		print("Charge now", end=" ")
+		charge_schedule = df_sub[df_sub['TimeStamp'] < now + datetime.timedelta(hours=hours_on)]
+		charge_schedule = charge_schedule.sort_values(by='TimeStamp')
+		value_lim = charge_schedule.nlargest(1, 'value')['value'].values[0]
+
+		return charge_schedule, value_lim
 
 
 
 
-def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern, set_time=None, value_lim=82):
+def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern, set_time=None, value_lim=82, charge_fraction=0.3):
 
 	"""
 		This function creates a charging schedule based on data from nordpool (nordpool_data)
@@ -134,75 +131,40 @@ def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern, set_time=No
 			hour_to_charge: hours for setting schedule
 			nordpool_data: data from nordpool
 			now: current time
-			pattern: which type of charging pattern available, 'auto', 'fast_smart', 'now'
+			pattern: which type of charging pattern available, 'auto', 'fast_smart', 'on'
+			set_time: hours to the car should be charged
+			value_lim: the value of the last value in the average of the lowest fraction of the history
+			charge_fraction: the fraction of the avalibale hours to use in the schedule
+
 		Returns:
 			schedule
-			remaining_hours: if not all charging hours are fitted in the first schedule
 
 	"""
 	print(f"Getting charging schedule at: {now}")
 
-	#TODO Creat a function that calculates the value lim besed on previus week data
-	# value_lim = get_value_lim(nordpool_data, now)
-
-	nordpool_data['TimeStamp'] = pd.to_datetime(nordpool_data['TimeStamp']).dt.tz_localize(None)
-	df_sub = nordpool_data[nordpool_data['TimeStamp'] >= datetime.datetime(year=now.year, month=now.month, day=now.day, hour=now.hour)] 
-	last_time_stamp = df_sub['TimeStamp'].iloc[-1]
-
-	hours_to_last_time_stamp = int((last_time_stamp.tz_localize(None) - now.replace(tzinfo=None)).total_seconds()/3600)
-	if hours_to_last_time_stamp > 12:
-		hours_to_last_time_stamp = 12
 
 	charge_limit = 12
 
 	if pattern == 'fast_smart':
-		# TODO Still uses all data and not a small sub set
-		if hour_to_charged > charge_limit:
-			stop_charge = now + datetime.timedelta(hours=hour_to_charged)
-			charge_schedule = df_sub[df_sub['TimeStamp'] < stop_charge]
-		else:
-			df_sub_sub = df_sub[df_sub['TimeStamp'] < now + datetime.timedelta(hours=set_time)]
-			charge_schedule = df_sub_sub.nsmallest(hour_to_charged, 'value')
-		print(f"Set time: {set_time}, ", end=" ")
+		charge_schedule, value_lim = get_fast_smart_schedule(nordpool_data, now, hour_to_charged, charge_limit, set_time)
 
 	elif pattern == 'auto':
-		#charge_schedule, value_lim = get_charge_schedule_prev_mean(nordpool_data,value_lim,now, hours_to_last_time_stamp, df_sub)
-		#charge_schedule, value_lim = get_charge_schedule_prev_lowest(nordpool_data, now, df_sub, value_lim)
-		charge_schedule, value_lim = get_charge_schedule_3(nordpool_data, now, 0.3)
-
-	elif pattern == 'full':
-		if set_time == None:
-			next_hour = (now.hour + 12) % 24
-		else:	
-			next_hour = set_time
-		next_day = next_datetime(now, next_hour)
-		next_day = next_day.replace(minute=0, second=0, microsecond=0 )
-
-		if next_day - now > datetime.timedelta(hours=hour_to_charged):
-			df_sub_sub = df_sub[df_sub['TimeStamp'] < next_day]
-			charge_schedule = df_sub_sub.nsmallest(hour_to_charged, 'value')
-		else:
-			df_sub_sub = df_sub[df_sub['TimeStamp'] < now + datetime.timedelta(hours=(hour_to_charged - 1))]
-			charge_schedule = df_sub_sub.nsmallest(hour_to_charged, 'value')
+		charge_schedule, value_lim = get_auto_charge_schedule(nordpool_data, now, charge_fraction)
 
 	elif pattern == 'on':
-		#TODO test
-		hours_on = hour_to_charged
-		print("Charge now", end=" ")
-		df_sub_sub = df_sub[df_sub['TimeStamp'] < now + datetime.timedelta(hours=hours_on)]
-		charge_schedule = df_sub_sub
+		charge_schedule, value_lim = get_on_charge_schedule(nordpool_data, now, hour_to_charged)
 
-
-	charge_schedule.loc[:, 'TimeStamp'] = pd.to_datetime(charge_schedule['TimeStamp'])
-	charge_schedule = charge_schedule.sort_values(by='TimeStamp')
-
+	else:
+		print("No pattern selected", end=" ")
+		charge_schedule = pd.DataFrame()
 
 	print(f"Value lim: {value_lim}")
 	print("Charging schedule:")
 	print(charge_schedule)
 	plot_data_schedule(charge_schedule, nordpool_data, now, save_uniqe_plots=True)
-	with  open('data/schedule_log.csv', 'a') as f:
-		f.write(str({'TimeStamp':now,'schedule':charge_schedule['TimeStamp']} ))
+	if not charge_schedule.empty:
+		with  open('data/schedule_log.csv', 'a') as f:
+			f.write(str({'TimeStamp':now,'schedule':charge_schedule['TimeStamp']} ))
 	return charge_schedule
 
 def plot_nordpool_data(nordpool_data):
@@ -215,13 +177,13 @@ def plot_nordpool_data(nordpool_data):
 	ax.set_title(f'Nordpool data')
 	vertical_line = datetime.datetime.now()
 	ax.axvline(x=vertical_line, color='red')
-	ax.set_ylim(0, max(y))
+	ax.set_ylim(min(y), max(y))
 	plot_path = f'static/plot_nordpool.png'
 	fig.savefig(plot_path)
 	plt.close(fig)
 	send_image_to_server('static/plot_nordpool.png')
 	# print("Save fig!")
-	#plt.show(
+	# plt.show()
 
 
 def plot_data_schedule(charge_schedule, nordpool_data, now, save_uniqe_plots=False):
@@ -237,7 +199,7 @@ def plot_data_schedule(charge_schedule, nordpool_data, now, save_uniqe_plots=Fal
 		y2 = charge_schedule['value'].values
 		ax.scatter(x2, y2, color='green')
 	ax.set_title(f'Schedule')
-	ax.set_ylim(0, max(y1))
+	ax.set_ylim(min(y1), max(y1))
 	vertical_line = datetime.datetime.now()
 	ax.axvline(x=vertical_line, color='red')
 	#TODO remove saving of all schedules after testing
@@ -248,7 +210,7 @@ def plot_data_schedule(charge_schedule, nordpool_data, now, save_uniqe_plots=Fal
 	plt.close(fig)
 	send_image_to_server('static/image.png')
 	# print("Save fig!")
-	#plt.show()
+	# plt.show()
 
 
 def ifCharge(charge_schedule, now):
@@ -262,7 +224,34 @@ def ifCharge(charge_schedule, now):
 
 	return False
 
+def get_charge_fraction(fases, kwh_per_week):
+
+	if fases == 1:
+		kw = 3 
+	elif fases == 3:
+		kw = 9
+	else:	
+		kw = 3
+	hours_needed = kwh_per_week/kw
+	fraction = hours_needed/(24*4)
+
+	return fraction	 
+
 def changeChargeStatusGaro(charging, charge, connected, available, test):
+	"""
+		This function changes the status of the GARO charger
+		Arguments:
+			charging: True if car is currently charging
+			charge: True if the car should be charged
+			connected: What kind of status the GARO charger has
+			available: What kind of status the GARO charger has
+			test: True if the function is in test mode and will not change the status of the GARO charger
+
+		Returns:
+			charging: True if the car is currently charging
+			connected: What kind of status the GARO charger has
+			available: What kind of status the GARO charger has
+	"""
 
 	if test:
 		print("Test mode! nothing will be changed!	", end=" ")
@@ -311,6 +300,11 @@ def changeChargeStatusGaro(charging, charge, connected, available, test):
 	return charging, connected, available
 
 def get_button_state():
+	"""
+		This function gets the state of the button from the server
+			
+			Returns: data
+	"""
 
 	try:
 		response = requests.get(server_url + '/get_status', timeout=20)
@@ -343,6 +337,14 @@ def get_button_state():
 
 
 def set_button_state(state):
+	"""
+		This function sets the state of the button on the server
+			
+			Arguments: state
+			
+			Returns: response
+	"""
+
 	try:
 		response = requests.post(server_url + '/set_state', json=state).status_code
 		if response == 200:
@@ -372,8 +374,10 @@ def send_image_to_server(image_path, verbose=False):
 
 def get_now(*args):
 	"""
-	This function get the current time and the utc offset
-	Returns: now, utc_offset
+		This function get the current time and the utc offset
+		
+			Returns: now, utc_offset
+
 	"""
 	if args:
 		now = args[0] + datetime.timedelta(minutes=20)
@@ -391,7 +395,9 @@ def get_now(*args):
 
 def lowTemp():
 	"""
-	This function get the temperture from a local device
+		This function get the temperture from a local device if any. 
+		If the temperture is below -18 it returns True
+		If the temperture is above -18 or the device is not available it returns False
 	"""
 	temp = get_temp()
 
@@ -427,18 +433,19 @@ def create_data_file():
 	data['fast_smart'] = 0
 	data['on'] = 0
 	data['schedule'] = pd.DataFrame()
-	data['remaining_hours'] = 0
 	data['charge'] = False
 	data['charging'] = True
 	data['connected'] = 0
 	data['hours'] = 0
 	data['set_time'] = 0
+	data['fas_value'] = 1
+	data['kwh_per_week'] = 50
 
 	return data
 
 def connected_to_lan():
 	# initializing URL
-	url = "http://router.asus.com/Main_Login.asp"
+	url = router_url
 	timeout = 10
 	try:
 			# requesting URL

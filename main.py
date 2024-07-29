@@ -9,7 +9,9 @@ import pickle
 from GARO.garo import get_Garo_status, on_off_Garo
 from LEAF.leaf import leaf_status, start_climat_control, stop_climat_control
 from NordPool.nordPool import getDataNordPool
-from CHARGE.charge import get_chargeSchedule, ifCharge, changeChargeStatusGaro, get_button_state, get_now, lowTemp, create_data_file, set_button_state, connected_to_lan, plot_nordpool_data, plot_data_schedule
+from CHARGE.charge import get_chargeSchedule, ifCharge, changeChargeStatusGaro, get_button_state, get_now, lowTemp, create_data_file, set_button_state, connected_to_lan, plot_nordpool_data, plot_data_schedule, get_charge_fraction
+import random
+
 
 print()
 """
@@ -29,24 +31,13 @@ Leafpy: Current url in auth.py is url = "https://gdcportalgw.its-mo.com/api_v210
 """
 
 
-if (args_count := len(sys.argv)) > 2:
-	print(f"No more than one argument expected, got {args_count - 1}")
-	print("Program in normal mode!")
-	test = False
-elif (args_count := len(sys.argv)) == 1:
-	print("Program in normal mode!")
-	test = False
-else:	
-	argument = sys.argv[1].lower()
-	if argument == "test":
-		print("Program in Test mode!")
-		test = True
-	else:
-		print("Program in normal mode!")
-		test = False
-			
 if os.getenv('PYTHONDEBUG', '0') == '1':
     test = True
+
+if test:
+	print("Test mode")
+else:
+	print("Normal mode")
 
 try:
 	with open('data/saved_data.pkl', 'rb') as f:
@@ -63,6 +54,10 @@ print()
 
 if 'set_time' not in data:
 	data['set_time'] = 0
+if 'fas_value' not in data:
+	data['fas_value'] = 1
+if 'kwh_per_week' not in data:
+	data['kwh_per_week'] = 50
 
 if test:
 	time_to_sleep = 5
@@ -74,6 +69,8 @@ _ = set_button_state({'auto':data['auto'],
 											'on':data['on'],
 											'hours':data['hours'],
 											'set_time':data['set_time'],
+											'fas_value':data['fas_value'],
+											'kwh_per_week':data['kwh_per_week']
 
 })
 while True:
@@ -100,6 +97,10 @@ while True:
 		data['new_down_load'] = new_download
 		
 	connected, available = get_Garo_status()
+	if test:
+		connected = random.choice(['CONNECTED', 'NOT_CONNECTED', 'CHARGING', 'CHARGING_PAUSED', 'CHARGING_FINISHED'])
+		available = random.choice(['ALWAYS_OFF', 'ALWAYS_ON', 'SCHEMA'])
+		print(f"Test connected: {connected}, available: {available}")
 
 	if connected == None or connected == 'CHARGING_PAUSED':
 		time.sleep(time_to_sleep)
@@ -115,6 +116,20 @@ while True:
 		
 		# Respons from webserver
 		response = get_button_state()
+		if test:
+			response['auto'] = 0
+			response['fast_smart'] = 0
+			response['on'] = 0
+			pattern = random.choice(['auto', 'fast_smart', 'on'])
+			response[pattern] = 1
+
+			hours = random.choice([3, 20])
+			response['hours'] = hours
+			response['set_time'] = random.choice([5,7,16])
+			response['fas_value'] = random.choice([1,3])
+			response['kwh_per_week'] = random.choice([40,80])
+			print(f"Test response	: {response}")
+
 
 		# If no response
 		if response == None:
@@ -131,7 +146,11 @@ while True:
 				response['fast_smart'] == data['fast_smart'] and \
 				response['on'] == data['on'] and \
 				response['hours'] == data['hours'] and \
-				response['set_time'] == data['set_time'] :
+				response['set_time'] == data['set_time'] and \
+				response['fas_value'] == data['fas_value'] and \
+				response['kwh_per_week'] == data['kwh_per_week'] :
+				
+			
 			
 			print("No change!", end=" ")
 
@@ -139,28 +158,19 @@ while True:
 		# The response from webserver have been changed to auto,  		#
 		# or the car has been connected			                      		#
 		###############################################################
-		elif (response['auto'] == 1 and data['auto'] != 1 and connected != "CHARGING_FINISHED") or \
-				(data['connected'] == "NOT_CONNECTED" and connected != "NOT_CONNECTED" \
-				and data['auto'] == 1):
+		elif response['auto'] == 1:
 
 			schedule= get_chargeSchedule(hour_to_charged=12, 
 																	nordpool_data=data['nordpool'], 
 																	now=now, 
-																	pattern='auto' )
-
-			data['schedule'] = schedule
-			data['remaining_hours'] = 0
-
-
-		##################     FAST SMART       #########################
-		# The response from webserver have been changed to fast_smart,	#
-		# or the car has been connected and is in fast_smart mode 'on'	#		
+																	pattern='auto',
+																	charge_fraction=get_charge_fraction( response['fas_value'], response['kwh_per_week']))
+		
+		######################   FAST_SMART   ###########################
+		# or the car has been connected and is in fast_smart mode     	#		
 		# and was not cached in previous statement										  #
 		#################################################################
-		elif (response['fast_smart'] == 1 and data['fast_smart'] != 1 and connected != "CHARGING_FINISHED" ) or \
-			(data['connected'] == "NOT_CONNECTED" and connected != "NOT_CONNECTED" \
-			and data['fast_smart'] == 1 ) or (response['hours'] != data['hours'] and response['fast_smart'] == 1) or \
-				(response['set_time'] != data['set_time'] and response['fast_smart'] == 1):
+		elif response['fast_smart']:
 
 			hours = response['hours']
 			schedule = get_chargeSchedule(hour_to_charged=hours, 
@@ -169,54 +179,27 @@ while True:
 																		set_time=response['set_time'],
 																		pattern='fast_smart')
 			data['schedule'] = schedule
-			data['remaining_hours'] = 0
 
 		#####################      ON          ##########################
 		# The response from webserver have been changed to on,					#
 		# or the car has been connected and is in on mode 'on'					#
 		# and was not cached in previous statement											#
 		#################################################################
-		elif (response['on']== 1 and data['on'] != 1 and connected != "CHARGING_FINISHED") or \
-			(data['connected'] == "NOT_CONNECTED" and connected != "NOT_CONNECTED" \
-			and data['on'] == 1):
+		elif response['on']== 1:
 
-			charge = True
 			schedule = get_chargeSchedule(hour_to_charged=16, 
 																		nordpool_data=data['nordpool'], 
 																		now=now, 
 																		pattern='on' )
 			data['schedule'] = schedule
-			data['charge'] = charge
-			data['remaining_hours'] = 0
-
-		######################      FULL     ############################
-		# The response from webserver have been changed to full,				#
-		# or the car has been connected and is in 'full' mode						#
-		# and was not cached in previous statement											#
-		#################################################################
-		elif (response['full'] == 1 and data['full'] != 1 and connected != "CHARGING_FINISHED") or \
-			(data['connected'] == "NOT_CONNECTED" and connected != "NOT_CONNECTED" \
-			and data['full'] == 1):
-
-			schedule = get_chargeSchedule(hour_to_charged=hours, 
-																									nordpool_data=data['nordpool'], 
-																									now=now, 
-																									pattern='full', 
-																									set_time=response['set_time'] )
-
-			data['schedule'] = schedule
-			data['remaining_hours'] = remaining_hours
-
 
 		#################################################################
 		# The response is off																						#
 		#################################################################	
 		elif response['auto'] == 0 and response['fast_smart'] == 0 and response['on']== 0:
 			schedule = pd.DataFrame()
-			remaining_hours = 0
 			charge = False
 			data['schedule'] = schedule
-			data['remaining_hours'] = remaining_hours
 			data['charge'] = charge
 
 		####################     CHARGING      ##########################
@@ -226,6 +209,10 @@ while True:
 			data['charging'] = True
 
 
+		####################     CHARGING      ##########################
+		# Determine if the car should be charged or not	acording to		  #
+		# the schedule and the time now.														    #	
+		#################################################################
 		if  not data['schedule'].empty:
 			charge = ifCharge(charge_schedule=data['schedule'], now=now)
 		else:
@@ -250,7 +237,8 @@ while True:
 					hours_to_charged = len(sub_schedule)
 				elif response['on'] == 1:
 					pattern = 'on'
-					hours_to_charged = len(sub_schedule)
+					charged_hours = len(schedule[schedule['TimeStamp'] < now])
+					hours_to_charged = 16 - charged_hours
 				elif response['full'] == 1:
 					pattern = 'full'
 					hours_to_charged = len(sub_schedule)
@@ -262,9 +250,9 @@ while True:
 																								nordpool_data=data['nordpool'], 
 																								now=now, 
 																								pattern=pattern,
-																								set_time=response['set_time'] )
+																								set_time=response['set_time'],
+																								charge_fraction=get_charge_fraction( response['fas_value'], response['kwh_per_week']))
 			data['schedule'] = schedule
-			data['remaining_hours'] = 0
 
 		#################################################################
 		# Turn status to auto as default																#
@@ -277,15 +265,10 @@ while True:
 			print("Default auto!", end=" ")
 			_  = set_button_state({'auto':1,'fast_smart':0,'on':0, 'full':0})
 
-		# data['auto'] = response['auto']
-		# data['full'] = response['full']
-		# data['fast_smart'] = response['fast_smart']
-		# data['on'] = response['on']
-		# data['hours'] = response['hours']
-		# data['connected'] = connected
-
 		###############      LOW TEMP			###############################
 		# If the temperature is low, charge the car!										#
+		# Only if temp device is connected!	Oherwise it it it return	  #
+		# false.																												#													  
 		#################################################################
 		if lowTemp():
 			print("Low temp!", end=" ")
@@ -306,13 +289,12 @@ while True:
 
 
 	################### WHEN CAR STOPPED CHARGING ###################
-	#																															#
+	#																															  #
 	#################################################################
 	elif connected == "CHARGING_FINISHED":
 		print("Charging finished!", end=" ")
 		charge = False
 		schedule = pd.DataFrame()
-		remaining_hours = 0
 
 		print("Default auto!", end=" ")
 		data['auto'] = 1
@@ -326,18 +308,15 @@ while True:
 												'full':data['full']})
 
 		data['schedule'] = schedule
-		data['remaining_hours'] = remaining_hours
 		data['charge'] = charge
 
 	###################   WHEN CAR IS DISSCONNECTED   ###################
 	#										or charging finished by car											#
 	##################################################################### 	
-				#TODO this is removed  or	connected == "CHARGING_FINISHED" and data['connected'] != "CHARGING_FINISHED" 
 	elif connected == "NOT_CONNECTED"  and data['connected'] != "NOT_CONNECTED" :
 
 		charge = False
 		schedule = pd.DataFrame()
-		remaining_hours = 0
 
 		print("Default auto!", end=" ")
 		data['auto'] = 1
@@ -351,7 +330,6 @@ while True:
 												'full':data['full']})
 	
 		data['schedule'] = schedule
-		data['remaining_hours'] = remaining_hours
 		data['charge'] = charge
 	
 
@@ -375,13 +353,12 @@ while True:
 	data['on'] = response['on']
 	data['hours'] = response['hours']
 	data['set_time'] = response['set_time']
-	plot_nordpool_data(data['nordpool'])
-	plot_data_schedule(data['schedule'], data['nordpool'],now)
-	
-	
-	
-	
-	
+	data['fas_value'] = response['fas_value']
+	data['kwh_per_week'] = response['kwh_per_week']
+	if not test:
+		plot_nordpool_data(data['nordpool'])
+		plot_data_schedule(data['schedule'], data['nordpool'],now)
+
 	with open('data/saved_data.pkl', 'wb') as f:
 			pickle.dump(data,f)
 
