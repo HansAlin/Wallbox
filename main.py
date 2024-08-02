@@ -56,8 +56,8 @@ if 'kwh_per_week' not in data:
 
 if test:
 	time_to_sleep = 5
-	schedule = pd.DataFrame()
-	data['schedule'] = schedule
+	# schedule = pd.DataFrame()
+	# data['schedule'] = schedule
 _ = set_button_state({'auto':data['auto'],
 											'full':data['full'],
 											'fast_smart':data['fast_smart'],
@@ -93,8 +93,9 @@ while True:
 		
 	connected, available = get_Garo_status()
 	if test:
-		connected = random.choice(['CONNECTED', 'NOT_CONNECTED', 'CHARGING', 'CHARGING_PAUSED', 'CHARGING_FINISHED'])
-		available = random.choice(['ALWAYS_OFF', 'ALWAYS_ON', 'SCHEMA'])
+		# connected = random.choice(['CONNECTED', 'NOT_CONNECTED', 'CHARGING', 'CHARGING_PAUSED', 'CHARGING_FINISHED'])
+		# available = random.choice(['ALWAYS_OFF', 'ALWAYS_ON', 'SCHEMA'])
+		data['connected'] = 'NOT_CONNECTED'
 		print(f"Test connected: {connected}, available: {available}")
 
 	if connected == None or connected == 'CHARGING_PAUSED':
@@ -112,17 +113,17 @@ while True:
 		# Respons from webserver
 		response = get_button_state()
 		if test:
-			response['auto'] = 0
-			response['fast_smart'] = 0
-			response['on'] = 0
-			pattern = random.choice(['auto'])
-			response[pattern] = 1
+			# response['auto'] = 0
+			# response['fast_smart'] = 0
+			# response['on'] = 0
+			# pattern = random.choice(['auto'])
+			# response[pattern] = 1
 
-			hours = random.choice([3, 20])
-			response['hours'] = hours
-			response['set_time'] = random.choice([5,7,16])
-			response['fas_value'] = random.choice([1,3])
-			response['kwh_per_week'] = random.choice([40,80])
+			# hours = random.choice([3, 20])
+			# response['hours'] = hours
+			# response['set_time'] = random.choice([5,7,16])
+			# response['fas_value'] = random.choice([1,3])
+			# response['kwh_per_week'] = random.choice([40,80])
 			print(f"Test response	: {response}")
 
 
@@ -143,7 +144,8 @@ while True:
 				response['hours'] == data['hours'] and \
 				response['set_time'] == data['set_time'] and \
 				response['fas_value'] == data['fas_value'] and \
-				response['kwh_per_week'] == data['kwh_per_week'] :
+				response['kwh_per_week'] == data['kwh_per_week'] and \
+				 not (connected != "NOT_CONNECTED" and data['connected'] == "NOT_CONNECTED"):
 				
 			
 			

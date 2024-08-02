@@ -6,6 +6,7 @@ import requests
 from CONFIG.config import url_garo
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.action_chains import ActionChains
 
 
 def on_off_Garo(value):
@@ -69,7 +70,7 @@ def get_Garo_status():
 		print("Not able to contact wallbox!", end=" ")
 		return None, None
 	
-def get_power_consumtion():
+def get_current_consumtion():
 	"""
 	This function check the power consumtion
 	Return: 
@@ -94,12 +95,14 @@ def get_power_consumtion():
 		driver = webdriver.Chrome(options=options)
 		url = url_garo + "/serialweb/"
 		driver.get(url)
-		wait = WebDriverWait(driver, 10)  # Wait up to 10 seconds
+		time.sleep(20)
 
-		x1 = wait.until(EC.presence_of_element_located((By.ID, "localphase1"))).text
-		x2 = wait.until(EC.presence_of_element_located((By.ID, "localphase2"))).text
-		x3 = wait.until(EC.presence_of_element_located((By.ID, "localphase3"))).text
-		
+		div = driver.find_element(By.CLASS_NAME, "ui-collapsible-heading-toggle")
+		ActionChains(driver).click(div).perform()
+
+		x1 = driver.find_element(By.ID, "localphase1").text
+		x2 = driver.find_element(By.ID, "localphase2").text
+		x3 = driver.find_element(By.ID, "localphase3").text
 		driver.close()
 		driver.quit()
 
@@ -111,13 +114,12 @@ def get_power_consumtion():
 		x2 = x2.split('A/')[0]
 		x3 = x3.split('A/')[0]
 
-		x1 = float(x1)*230/2
-		x2 = float(x2)*230/2
-		x3 = float(x3)*230/2
+		x1 = float(x1)
+		x2 = float(x2)
+		x3 = float(x3)
 
-		print('Fas 1 effekt:', x1)
-		print('Fas 2 effekt:', x2)
-		print('Fas 3 effekt:', x3)
+		print(f'Ström fas 1: {x1}, Ström fas 2: {x2}, Ström fas 3: {x3}', end=" ")
+
 		return {'fas1':x1, 'fas2':x2, 'fas3':x3}
 	except:
 		print('Not able to update status in GARO!:', end=" ")

@@ -48,7 +48,7 @@ def getDataNordPool(utc_offset, now, prev_data):
 
 			# Try to concatenate new data with old data		
 			first_time_stamp_new = new_data['TimeStamp'].iloc[0]
-			if last_time_stamp_prev.day + 1 == first_time_stamp_new.day:
+			if last_time_stamp_prev + datetime.timedelta(hours=1) == first_time_stamp_new:
 				new_data = concat_data(prev_data=prev_data, new_data=new_data)
 
 
