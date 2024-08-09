@@ -60,6 +60,7 @@ def get_auto_charge_schedule(nordpool_data, now, fraction):
 
 	first_time = True
 	charge_schedule = pd.DataFrame(columns=['TimeStamp', 'value'])
+	max_hours = 15			# The car is never nedded to be charged more than 15 hours
 
 	for lowest in range(1, furture_hours + 1):
 		for average_value in average_values:
@@ -73,6 +74,12 @@ def get_auto_charge_schedule(nordpool_data, now, fraction):
 				else:
 					charge_schedule.loc[len(charge_schedule)] = smallest_row
 				break
+
+			if len(charge_schedule) >= max_hours:
+				break
+
+		if len(charge_schedule) >= max_hours:
+			break		
 
 	charge_schedule = charge_schedule.sort_values(by='TimeStamp')
 

@@ -91,7 +91,10 @@ while True:
 		data['last_down_load'] = last_down_load
 		data['new_down_load'] = new_download
 		
+	# Current status from GARO	
 	connected, available = get_Garo_status()
+	# Respons from webserver
+	response = get_button_state()
 	if test:
 		# connected = random.choice(['CONNECTED', 'NOT_CONNECTED', 'CHARGING', 'CHARGING_PAUSED', 'CHARGING_FINISHED'])
 		# available = random.choice(['ALWAYS_OFF', 'ALWAYS_ON', 'SCHEMA'])
@@ -107,11 +110,10 @@ while True:
 	# available: "ALWAYS_OFF", "ALWAYS_ON", "SCHEMA":
 	# TODO might need to implement something that takes care of long periods of 'CHARGING_PAUSED'
 
-	if (connected != "NOT_CONNECTED") or (connected != "CHARGING_FINISHED"):
+	if (connected != "NOT_CONNECTED") and (connected != "CHARGING_FINISHED"):
 
 		
-		# Respons from webserver
-		response = get_button_state()
+
 		if test:
 			# response['auto'] = 0
 			# response['fast_smart'] = 0
