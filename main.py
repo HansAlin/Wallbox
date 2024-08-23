@@ -9,7 +9,7 @@ import pickle
 from GARO.garo import get_Garo_status, on_off_Garo
 from LEAF.leaf import leaf_status, start_climat_control, stop_climat_control
 from NordPool.nordPool import getDataNordPool
-from CHARGE.charge import get_chargeSchedule, ifCharge, changeChargeStatusGaro, get_button_state, get_now, lowTemp, create_data_file, set_button_state, connected_to_lan, plot_nordpool_data, plot_data_schedule, get_charge_fraction
+from CHARGE.charge import get_chargeSchedule, ifCharge, changeChargeStatusGaro, get_button_state, get_now, lowTemp, create_data_file, set_button_state, connected_to_lan, plot_nordpool_data, plot_data_schedule, get_charge_fraction, save_log
 import random
 
 
@@ -104,6 +104,7 @@ while True:
 	if connected == None or connected == 'CHARGING_PAUSED':
 		time.sleep(time_to_sleep)
 		print()
+		save_log(data, now, connected, available, response)
 		continue
 	# Response options
 	# connected: "NOT_CONNECTED", "CONNECTED", "DISABLED", 'CHARGING_PAUSED', 'CHARGING_FINISHED', 'CHARGING':
@@ -133,6 +134,7 @@ while True:
 		if response == None:
 			time.sleep(time_to_sleep)
 			print()
+			save_log(data, now, connected, available, response)
 			continue
 
 
@@ -164,7 +166,8 @@ while True:
 																	now=now, 
 																	pattern='auto',
 																	charge_fraction=get_charge_fraction( response['fas_value'], response['kwh_per_week']))
-		
+			data['schedule'] = schedule
+			
 		######################   FAST_SMART   ###########################
 		# or the car has been connected and is in fast_smart mode     	#		
 		# and was not cached in previous statement										  #
@@ -360,6 +363,6 @@ while True:
 
 	with open('data/saved_data.pkl', 'wb') as f:
 			pickle.dump(data,f)
-
+	save_log(data, now, connected, available, response)	
 	print()
 	time.sleep(time_to_sleep)

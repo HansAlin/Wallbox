@@ -471,3 +471,66 @@ def next_datetime(current: datetime.datetime, hour: int, **kwargs):
     while repl <= current:
         repl = repl + datetime.timedelta(days=1)
     return repl
+
+def save_log(data, now, connected, available, response):
+	"""
+	This function saves the log data to a file
+	Arguments:
+		data: data used in main function to keep track of current status
+		now: current time
+		connected: status from GARO
+		available: status from GARO
+		response: status from the server, what user has selected
+
+	"""
+	txt_str = ''
+	txt_str += f"Time: {now}; "
+	txt_str += f"Garo: {connected}; "
+	txt_str += f"Available: {available}; "
+	txt_str += f"Response: "
+	if response == None:
+		txt_str += "None, "	
+	else:
+		if response['auto'] == 1:
+			txt_str += "Auto = 1, "
+		elif response['fast_smart'] == 1:
+			txt_str += "Fast smart = 1, "
+		elif response['on'] == 1:
+			txt_str += "On = 1, "
+		elif response['full'] == 1:
+			txt_str += "Full = 1, "
+		else:
+			txt_str += "All = 0, "
+		txt_str += f"set_time = {response['set_time']}, "
+		txt_str += f"fas_value = {response['fas_value']}, "
+		txt_str += f"kwh_per_week = {response['kwh_per_week']}; "
+
+		txt_str += f"Data: "
+		txt_str += f"New down load = {data['new_down_load']}, "
+		txt_str += f"Auto = {data['auto']}, "
+		txt_str += f"Fast smart = {data['fast_smart']}, "
+		txt_str += f"On = {data['on']}, "
+		txt_str += f"Remaining hours = {data['remaining_hours']}, "
+		txt_str += f"Charge = {data['charge']}, "
+		txt_str += f"Charging = {data['charging']}, "
+		txt_str += f"Connected = {data['connected']}, "
+		txt_str += f"Hours = {data['hours']}, "
+		txt_str += f"Full = {data['full']}, "
+		txt_str += f"AC = {data['ac']}, "
+		txt_str += f"Available = {data['available']}, "	
+		txt_str += f"Set time = {data['set_time']}, "
+		txt_str += f"Fas value = {data['fas_value']}, "
+		txt_str += f"kwh per week = {data['kwh_per_week']}; "
+
+		if data['schedule'].empty:
+			txt_str += "Schedule: None"
+		else:
+			txt_str += f"Schedule: YES"
+
+		with open('data/log.txt', 'a') as f:
+			f.write(txt_str + '\n')	
+
+
+
+
+
