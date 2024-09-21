@@ -14,6 +14,7 @@ except FileNotFoundError:
 def update_file():
     with open('web_data.txt', 'w') as f:
         for key, value in settings.items():
+            print(key, value)
             f.write(str(value) + '\n')
 
 @app.route('/')
@@ -23,7 +24,7 @@ def index():
 @app.route('/<deviceName>/<action>')
 def action(deviceName, action):
     if action == 'on':
-        settings.update({key: 0 for key in settings.keys() if key != 'hours' and key != 'set_time' and key != 'fas_value' and key != 'kwh_per_week'})
+        settings.update({key: 0 for key in settings.keys() if key not in ['hours', 'set_time', 'fas_value', 'kwh_per_week']})
         settings[deviceName] = 1
     elif action == 'off':
         settings[deviceName] = 0
@@ -81,25 +82,6 @@ def set_time():
     update_file()
     return redirect('/')
 
-# @app.route('/set_state', methods=['POST'])
-# def set_state():
-#     global auto_Sts, full_Sts, fast_smart_Sts, now_Sts, set_time, hours
-#     data = request.get_json()
-#     if data:
-#         if 'auto' in data:
-#             auto_Sts = data['auto']
-#         if 'full' in data:
-#             full_Sts = data['full']    
-#         if 'fast_smart' in data:
-#             fast_smart_Sts = data['fast_smart']
-#         if 'on' in data:
-#             now_Sts = data['on']        
-#         if 'hours' in data:
-#             hours = data['hours']    
-#         if 'set_time' in data:
-#             set_time = data['set_time']
-#     update_file()
-#     return redirect('/')
 
 @app.route('/set_state', methods=['POST'])
 def set_state():

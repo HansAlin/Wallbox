@@ -1,3 +1,4 @@
+
 from selenium import webdriver
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.common.by import By
@@ -7,6 +8,7 @@ from CONFIG.config import url_garo
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
+import logging
 
 
 def on_off_Garo(value):
@@ -24,29 +26,46 @@ def on_off_Garo(value):
 	options.add_argument('--disable-infobars')
 	options.add_argument('--disable-gpu')
 	options.add_experimental_option('excludeSwitches', ['disable-logging'])
+	driver = webdriver.Chrome(options=options)
 
 	try:
 		# For raspberry pi /usr/bin/chromedriver
 		#driver = webdriver.Chrome(r'/usr/bin/chromedriver', options=options)
 
 		
-		driver = webdriver.Chrome(options=options)
 		url = url_garo + "/serialweb/"
 		driver.get(url)
 		time.sleep(30)
 
-		x = driver.find_element(by=By.ID, value="controlmode")
+		# Click the div to reveal the select options
+		controlmode_button = WebDriverWait(driver, 10).until(
+			EC.element_to_be_clickable((By.ID, "controlmode-button"))
+		)
+		controlmode_button.click()
+
+		# Wait for the select element to be present
+		x = WebDriverWait(driver, 10).until(
+		EC.presence_of_element_located((By.ID, "controlmode"))
+    	)
+
 		drop = Select(x)
 		drop.select_by_value(value)
+
+		# Verify the selected value
+		selected_option = drop.first_selected_option.get_attribute("value")
+		if selected_option == value:
+			status_updated = True
+		else:
+			status_updated = False
+
 		driver.close()
 		driver.quit()
 		print('Status updated in GARO!:', end=" ")
-		return True
+		return status_updated
 	except:
 		print('Not able to update status in GARO!:', end=" ")
 		return False
-	
-	return True
+
 
 def get_Garo_status():
 	"""
