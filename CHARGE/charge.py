@@ -265,7 +265,6 @@ def changeChargeStatusGaro(charging, charge, connected, available, test):
 			connected: What kind of status the GARO charger has
 			available: What kind of status the GARO charger has
 	"""
-
 	if test:
 		print("Test mode! nothing will be changed!	", end=" ")
 		

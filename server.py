@@ -96,6 +96,26 @@ def update_set_time():
     update_file(settings)
     return redirect('/')
 
+# @app.route('/set_state', methods=['POST'])
+# def set_state():
+#     global auto_Sts, full_Sts, fast_smart_Sts, now_Sts, set_time, hours
+#     data = request.get_json()
+#     if data:
+#         if 'auto' in data:
+#             auto_Sts = data['auto']
+#         if 'full' in data:
+#             full_Sts = data['full']    
+#         if 'fast_smart' in data:
+#             fast_smart_Sts = data['fast_smart']
+#         if 'on' in data:
+#             now_Sts = data['on']        
+#         if 'hours' in data:
+#             hours = data['hours']    
+#         if 'set_time' in data:
+#             set_time = data['set_time']
+#     update_file()
+#     return redirect('/')
+
 @app.route('/set_state', methods=['POST'])
 def set_state():
     data = request.get_json()

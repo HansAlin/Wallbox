@@ -23,7 +23,7 @@ if os.getenv('PYTHONDEBUG', '0') == '1':
 else:
 		argument = sys.argv[0].lower()
 		if argument == "test":
-			print("Program in Test mode!")
+			print("Program in TJest mode!")
 			test = True
 		else:
 			print("Program in normal mode!")
@@ -70,7 +70,7 @@ _ = set_button_state({'auto':data['auto'],
 })
 while True:
 	now, utc_offset = get_now()
-
+	
 	if not connected_to_lan():
 		time.sleep(time_to_sleep)
 		print()
@@ -334,6 +334,17 @@ while True:
 		data['schedule'] = schedule
 		data['charge'] = charge
 	
+	elif connected == "NOT_CONNECTED" and data['connected'] == "NOT_CONNECTED":
+		if available == "ALWAYS_ON":
+			charge = False
+			schedule = pd.DataFrame()
+			data['schedule'] = schedule
+			data['charge'] = charge
+		else:
+			print("Not connected!", end=" ")
+			time.sleep(time_to_sleep)
+			print()
+			continue
 
 	###################   UPDATE CHARGE STATUS   ########################
 	#																																		#
