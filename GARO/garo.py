@@ -24,6 +24,7 @@ def on_off_Garo(value):
 	options.add_argument('--disable-infobars')
 	options.add_argument('--disable-gpu')
 	options.add_experimental_option('excludeSwitches', ['disable-logging'])
+	options.add_argument('--disk-cache-size=0')
 
 	try:
 		# For raspberry pi /usr/bin/chromedriver
@@ -86,6 +87,7 @@ def get_current_consumtion():
 	options.add_argument('--disable-infobars')
 	options.add_argument('--disable-gpu')
 	options.add_experimental_option('excludeSwitches', ['disable-logging'])
+	options.add_argument('--disk-cache-size=0')
 
 	try:
 		# For raspberry pi /usr/bin/chromedriver

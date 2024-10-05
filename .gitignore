@@ -11,3 +11,4 @@ test_leafpy.py
 test_set_button_state.py
 *.pyc 
 energy_cal.py
+aurora_alert.py

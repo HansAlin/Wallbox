@@ -112,7 +112,10 @@ def get_fast_smart_schedule(nordpool_data, now, hour_to_charged, charge_limit, s
 		charge_schedule = df_sub_sub.nsmallest(hour_to_charged, 'value')
 	print(f"Set time: {set_time}, ", end=" ")
 	charge_schedule = charge_schedule.sort_values(by='TimeStamp')
-	value_lim = charge_schedule.nlargest(1, 'value')['value'].values[0]
+	try:
+		value_lim = charge_schedule['value'].max()
+	except:
+		value_lim = 999
 
 	return charge_schedule, value_lim
 
@@ -123,7 +126,10 @@ def get_on_charge_schedule(nordpool_data, now, hour_to_charged):
 		print("Charge now", end=" ")
 		charge_schedule = df_sub[df_sub['TimeStamp'] < now + datetime.timedelta(hours=hours_on)]
 		charge_schedule = charge_schedule.sort_values(by='TimeStamp')
-		value_lim = charge_schedule.nlargest(1, 'value')['value'].values[0]
+		try:
+			value_lim = charge_schedule['value'].max()
+		except:
+			value_lim = 999
 
 		return charge_schedule, value_lim
 
@@ -527,8 +533,18 @@ def save_log(data, now, connected, available, response):
 		else:
 			txt_str += f"Schedule: YES"
 
-		with open('data/log.txt', 'a') as f:
-			f.write(txt_str + '\n')	
+		max_lines = 1000
+		log_file = 'data/log.txt'
+
+		with open(log_file, 'r') as f:
+			lines = f.readlines()
+			if len(lines) >= max_lines:
+				lines = lines[-(max_lines - 1):]
+
+		lines.append(txt_str + '\n')
+
+		with open(log_file, 'w') as f:
+			f.writelines(lines)
 
 
 

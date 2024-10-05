@@ -42,7 +42,7 @@ except:
 	data = create_data_file()
 data['nordpool']['TimeStamp'] = pd.to_datetime(data['nordpool']['TimeStamp'])	
 plot_nordpool_data(data['nordpool'])
-time_to_sleep = 120  # It is needed because asking GARO to often generates problems
+time_to_sleep = 60  # It is needed because asking GARO to often generates problems
 print("Start or restart")
 now, utc_offset = get_now()
 print()

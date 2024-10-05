@@ -4,17 +4,44 @@ from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 
-# Initialize global variables
-try:
-    with open('web_data.txt', 'r') as f:
-        settings = {key: int(value) for key, value in zip(['auto', 'full', 'fast_smart', 'on', 'hours', 'set_time', 'fas_value', 'kwh_per_week'], f.readlines())}
-except FileNotFoundError:
-    settings = {'auto': 1, 'full': 0, 'fast_smart': 0, 'on': 0, 'hours': 5, 'set_time': 12, 'fas_value': 1, 'kwh_per_week': 50}
+# Define default settings
+DEFAULT_SETTINGS = {
+    'auto': 1,
+    'full': 0,
+    'fast_smart': 0,
+    'on': 0,
+    'hours': 5,
+    'set_time': 12,
+    'fas_value': 1,
+    'kwh_per_week': 50
+}
+def update_file(settings):
+    try:
+        with open('web_data.txt', 'w') as f:
+            for key in DEFAULT_SETTINGS:
+                f.write(str(settings[key]) + '\n')
+    except IOError as e:
+        print(f"Error writing to file: {e}")
 
-def update_file():
-    with open('web_data.txt', 'w') as f:
-        for key, value in settings.items():
-            f.write(str(value) + '\n')
+# Initialize settings from file or use defaults
+def load_settings():
+    try:
+        with open('web_data.txt', 'r') as f:
+            # Read lines and convert them to integers
+            lines = f.readlines()
+            if len(lines) != len(DEFAULT_SETTINGS):
+                raise ValueError("File content does not match expected format.")
+            settings = {key: int(value.strip()) for key, value in zip(DEFAULT_SETTINGS.keys(), lines)}
+    except (FileNotFoundError, ValueError, IndexError):
+        # Use default settings if file is missing or content is invalid
+        settings = DEFAULT_SETTINGS
+        # Optionally, initialize the file with default settings
+        update_file(settings)
+    return settings
+
+# Load settings at startup
+settings = load_settings()
+
 
 @app.route('/')
 def index():
@@ -23,14 +50,13 @@ def index():
 @app.route('/<deviceName>/<action>')
 def action(deviceName, action):
     if action == 'on':
-        settings.update({key: 0 for key in settings.keys() if key != 'hours' and key != 'set_time' and key != 'fas_value' and key != 'kwh_per_week'})
+        settings.update({key: 0 for key in settings.keys() if key not in ['hours', 'set_time', 'fas_value', 'kwh_per_week']})
         settings[deviceName] = 1
     elif action == 'off':
         settings[deviceName] = 0
 
-    update_file()
+    update_file(settings)
     return render_template('index.html', **settings)
-
 
 @app.route('/get_status', methods=['GET'])
 def get_status():
@@ -38,68 +64,37 @@ def get_status():
 
 @app.route('/set_value', methods=['POST'])
 def set_value():
-    global hours, fas_value, kwh_per_week
-
     if 'hours' in request.form:
-        new_value = request.form['hours']
         try:
-            hours = int(new_value)
+            settings['hours'] = int(request.form['hours'])
         except ValueError:
-            hours = 0
-        settings['hours'] = hours
+            settings['hours'] = DEFAULT_SETTINGS['hours']
 
     if 'fas_value' in request.form:
-        fas_value = request.form['fas_value']
         try:
-            fas_value = int(fas_value)
+            settings['fas_value'] = int(request.form['fas_value'])
         except ValueError:
-            fas_value = 1
-        settings['fas_value'] = fas_value
+            settings['fas_value'] = DEFAULT_SETTINGS['fas_value']
 
     if 'kwh_per_week' in request.form:
-        kwh_per_week = request.form['kwh_per_week']
         try:
-            kwh_per_week = int(kwh_per_week)
+            settings['kwh_per_week'] = int(request.form['kwh_per_week'])
         except ValueError:
-            kwh_per_week = 50
-        settings['kwh_per_week'] = kwh_per_week
+            settings['kwh_per_week'] = DEFAULT_SETTINGS['kwh_per_week']
 
-    update_file()
+    update_file(settings)
     return redirect('/')
 
 @app.route('/set_time', methods=['POST'])
-def set_time():
-    global set_time
-    new_time = request.form['set_time']
+def update_set_time():
+    new_time = request.form.get('set_time', '')
     try:
-        # Extract the hour from the submitted time (format: "HH:00")
-        set_time = int(new_time.split(":")[0])
+        settings['set_time'] = int(new_time.split(":")[0])
     except ValueError:
-        set_time = 0
+        settings['set_time'] = DEFAULT_SETTINGS['set_time']
 
-    settings['set_time'] = set_time
-    update_file()
+    update_file(settings)
     return redirect('/')
-
-# @app.route('/set_state', methods=['POST'])
-# def set_state():
-#     global auto_Sts, full_Sts, fast_smart_Sts, now_Sts, set_time, hours
-#     data = request.get_json()
-#     if data:
-#         if 'auto' in data:
-#             auto_Sts = data['auto']
-#         if 'full' in data:
-#             full_Sts = data['full']    
-#         if 'fast_smart' in data:
-#             fast_smart_Sts = data['fast_smart']
-#         if 'on' in data:
-#             now_Sts = data['on']        
-#         if 'hours' in data:
-#             hours = data['hours']    
-#         if 'set_time' in data:
-#             set_time = data['set_time']
-#     update_file()
-#     return redirect('/')
 
 @app.route('/set_state', methods=['POST'])
 def set_state():
@@ -108,7 +103,7 @@ def set_state():
         for key in ['auto', 'full', 'fast_smart', 'on', 'hours', 'set_time']:
             if key in data:
                 settings[key] = data[key]
-    update_file()
+    update_file(settings)
     return redirect('/')
 
 @app.route('/upload_image', methods=['POST'])
