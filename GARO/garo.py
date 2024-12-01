@@ -30,15 +30,13 @@ def on_off_Garo(value):
 
 	try:
 		# For raspberry pi /usr/bin/chromedriver
-		#driver = webdriver.Chrome(r'/usr/bin/chromedriver', options=options)
+		driver = webdriver.Chrome(options=options)
 
-		
 		url = url_garo + "/serialweb/"
 		driver.get(url)
-		time.sleep(30)
 
 		# Click the div to reveal the select options
-		controlmode_button = WebDriverWait(driver, 10).until(
+		controlmode_button = WebDriverWait(driver, 30).until(
 			EC.element_to_be_clickable((By.ID, "controlmode-button"))
 		)
 		controlmode_button.click()
@@ -62,12 +60,12 @@ def on_off_Garo(value):
 		driver.quit()
 		print('Status updated in GARO!:', end=" ")
 		return status_updated
-	except:
-		print('Not able to update status in GARO!:', end=" ")
+	except Exception as e:
+		print(f'Not able to update status in GARO!: {e}', end=" ")
 		return False
 
 
-def get_Garo_status():
+def get_Garo_status(test=False):
 	"""
 	This function check if car is connected to GARO
 	Return: 
@@ -76,6 +74,9 @@ def get_Garo_status():
 
 
 	"""
+	if test:
+		return 'CONNECTED', 'ALWAYS_OFF'
+
 	try:
 		url = url_garo + '/servlet/rest/chargebox/status?_=1'
 		response = requests.get(url=url, timeout=30)
@@ -110,15 +111,19 @@ def get_current_consumtion():
 	try:
 		# For raspberry pi /usr/bin/chromedriver
 		#driver = webdriver.Chrome(r'/usr/bin/chromedriver', options=options)
-
+		
 		
 		driver = webdriver.Chrome(options=options)
 		url = url_garo + "/serialweb/"
 		driver.get(url)
-		time.sleep(20)
 
-		div = driver.find_element(By.CLASS_NAME, "ui-collapsible-heading-toggle")
-		ActionChains(driver).click(div).perform()
+		# Wait for the element to be clickable
+		wait = WebDriverWait(driver, 20)
+		div = wait.until(EC.element_to_be_clickable((By.CLASS_NAME, "ui-collapsible-heading-toggle")))
+		
+		# Scroll the element into view
+		driver.execute_script("arguments[0].scrollIntoView(true);", div)
+		div.click()
 
 		x1 = driver.find_element(By.ID, "localphase1").text
 		x2 = driver.find_element(By.ID, "localphase2").text
@@ -126,25 +131,29 @@ def get_current_consumtion():
 		driver.close()
 		driver.quit()
 
-		x1 = x1.split(': ')[1]
-		x2 = x2.split(': ')[1]
-		x3 = x3.split(': ')[1]
-
-		x1 = x1.split('A/')[0] 
-		x2 = x2.split('A/')[0]
-		x3 = x3.split('A/')[0]
+		x1 = x1.split(': ')[1].split('A/')[0]
+		x2 = x2.split(': ')[1].split('A/')[0]
+		x3 = x3.split(': ')[1].split('A/')[0]
+ 
 
 		x1 = float(x1)
 		x2 = float(x2)
 		x3 = float(x3)
 
-		print(f'Ström fas 1: {x1}, Ström fas 2: {x2}, Ström fas 3: {x3}', end=" ")
+		print(f'1: {x1:>5.1f} A, 2: {x2:>5.1f} A, 3: {x3:>5.1f} A', end=" ")
 
 		return {'fas1':x1, 'fas2':x2, 'fas3':x3}
-	except:
-		print('Not able to update status in GARO!:', end=" ")
+	except Exception as e:
+		print(f'Not able to update status in GARO!: {e}', end=" ")
 		return False
 	
+if __name__ == '__main__':
+	# Test the functions
+	on_off_Garo('1')
+	on_off_Garo('0')
+
+	get_Garo_status()
+	get_current_consumtion()
 
 
   

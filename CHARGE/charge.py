@@ -40,11 +40,13 @@ def get_auto_charge_schedule(nordpool_data, now, fraction):
 
 	# Get the number of history chunks each chunk is furture_hours long
 	# unless the history is shorter than the future
+	if furture_hours == 0:
+		return pd.DataFrame(), 0
 	number_of_history_chunks = max(int(history_hours/furture_hours),1)
 	chunk_hours = int(min([history_hours, furture_hours]))
 
 	# Number of hours to use in the future
-	fraction_hours = max(int(furture_hours*fraction),1)
+	fraction_hours = min(max(int(furture_hours*fraction),1), furture_hours)
 
 	# Get the average value of the lowest fraction of the history data
 	average_values = np.zeros(fraction_hours)
@@ -83,6 +85,8 @@ def get_auto_charge_schedule(nordpool_data, now, fraction):
 
 	charge_schedule = charge_schedule.sort_values(by='TimeStamp')
 
+	print(f"Auto: {len(charge_schedule)} h", end=' ')
+
 	return charge_schedule, value_lim
 
 def get_fast_smart_schedule(nordpool_data, now, hour_to_charged, charge_limit, set_time=None):
@@ -110,20 +114,19 @@ def get_fast_smart_schedule(nordpool_data, now, hour_to_charged, charge_limit, s
 	else:
 		df_sub_sub = df_sub[df_sub['TimeStamp'] < now + datetime.timedelta(hours=set_time)]
 		charge_schedule = df_sub_sub.nsmallest(hour_to_charged, 'value')
-	print(f"Set time: {set_time}, ", end=" ")
 	charge_schedule = charge_schedule.sort_values(by='TimeStamp')
 	try:
 		value_lim = charge_schedule['value'].max()
 	except:
 		value_lim = 999
-
+	print(f"Fast smart: for {hour_to_charged} h and Set time: {set_time}, ", end=" ")
 	return charge_schedule, value_lim
 
 def get_on_charge_schedule(nordpool_data, now, hour_to_charged):
 
 		df_sub = nordpool_data[nordpool_data['TimeStamp'] >= datetime.datetime(year=now.year, month=now.month, day=now.day, hour=now.hour)] 
 		hours_on = hour_to_charged
-		print("Charge now", end=" ")
+		
 		charge_schedule = df_sub[df_sub['TimeStamp'] < now + datetime.timedelta(hours=hours_on)]
 		charge_schedule = charge_schedule.sort_values(by='TimeStamp')
 		try:
@@ -131,6 +134,7 @@ def get_on_charge_schedule(nordpool_data, now, hour_to_charged):
 		except:
 			value_lim = 999
 
+		print(f"Charge now for {len(charge_schedule)}", end=" ")
 		return charge_schedule, value_lim
 
 
@@ -171,59 +175,67 @@ def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern, set_time=No
 		print("No pattern selected", end=" ")
 		charge_schedule = pd.DataFrame()
 
+	if charge_schedule.empty:
+		return charge_schedule
+	
 	print(f"Value lim: {value_lim}")
 	print("Charging schedule:")
 	print(charge_schedule)
 	plot_data_schedule(charge_schedule, nordpool_data, now, save_uniqe_plots=False)
-	if not charge_schedule.empty:
-		with  open('data/schedule_log.csv', 'a') as f:
-			f.write(str({'TimeStamp':now,'schedule':charge_schedule['TimeStamp']} ))
+
 	return charge_schedule
 
 def plot_nordpool_data(nordpool_data):
-	hh = DateFormatter('%H')
-	x = nordpool_data['TimeStamp'].values
-	y = nordpool_data['value'].values
-	fig, ax = plt.subplots()
-	ax.xaxis.set_major_formatter(hh)
-	ax.scatter(x, y)
-	ax.set_title(f'Nordpool data')
-	vertical_line = datetime.datetime.now()
-	ax.axvline(x=vertical_line, color='red')
-	ax.set_ylim(min(y), max(y))
-	plot_path = f'static/plot_nordpool.png'
-	fig.savefig(plot_path)
-	plt.close(fig)
-	send_image_to_server('static/plot_nordpool.png')
-	# print("Save fig!")
-	# plt.show()
+	try:
+		if nordpool_data.empty:
+			print("Nordpool data is empty", end=" ")
+		else:	
+			hh = DateFormatter('%H')
+			x = nordpool_data['TimeStamp'].values
+			y = nordpool_data['value'].values
+			fig, ax = plt.subplots()
+			ax.xaxis.set_major_formatter(hh)
+			ax.scatter(x, y)
+			ax.set_title(f'Nordpool data')
+			vertical_line = datetime.datetime.now()
+			ax.axvline(x=vertical_line, color='red')
+			ax.set_ylim(min(y) - 0.2, max(y) + 0.2)
+			plot_path = f'static/plot_nordpool.png'
+			fig.savefig(plot_path)
+			plt.close(fig)
+			send_image_to_server('static/plot_nordpool.png')
+	except Exception as e:
+		print(f"Could not plot nordpool data: {e}", end=" ")
+
 
 
 def plot_data_schedule(charge_schedule, nordpool_data, now, save_uniqe_plots=False):
-	sub_nordpool_data = nordpool_data[nordpool_data['TimeStamp'] > now - datetime.timedelta(hours=24)] 
-	hh = DateFormatter('%H')
-	x1 = sub_nordpool_data['TimeStamp'].values
-	y1 = sub_nordpool_data['value'].values
-	fig, ax = plt.subplots()
-	ax.xaxis.set_major_formatter(hh)
-	ax.scatter(x1, y1 , color='blue')
-	if not charge_schedule.empty:
-		x2 = charge_schedule['TimeStamp'].values
-		y2 = charge_schedule['value'].values
-		ax.scatter(x2, y2, color='green')
-	ax.set_title(f'Schedule')
-	ax.set_ylim(min(y1), max(y1))
-	vertical_line = datetime.datetime.now()
-	ax.axvline(x=vertical_line, color='red')
-	#TODO remove saving of all schedules after testing
-	if save_uniqe_plots:
-		plot_path = f'data/plots/plot_{now.year}-{now.month}-{now.day}_{now.hour}:{now.minute}.png'
-		fig.savefig(plot_path)
-	fig.savefig('static/image.png')
-	plt.close(fig)
-	send_image_to_server('static/image.png')
-	# print("Save fig!")
-	# plt.show()
+	try:	
+		sub_nordpool_data = nordpool_data[nordpool_data['TimeStamp'] > now - datetime.timedelta(hours=24)] 
+		hh = DateFormatter('%H')
+		x1 = sub_nordpool_data['TimeStamp'].values
+		y1 = sub_nordpool_data['value'].values
+		fig, ax = plt.subplots()
+		ax.xaxis.set_major_formatter(hh)
+		ax.scatter(x1, y1 , color='blue')
+		if not charge_schedule.empty:
+			x2 = charge_schedule['TimeStamp'].values
+			y2 = charge_schedule['value'].values
+			ax.scatter(x2, y2, color='green')
+		ax.set_title(f'Schedule')
+		ax.set_ylim(min(y1)- 0.2, max(y1) + 0.2)
+		vertical_line = datetime.datetime.now()
+		ax.axvline(x=vertical_line, color='red')
+		#TODO remove saving of all schedules after testing
+		if save_uniqe_plots:
+			plot_path = f'data/plots/plot_{now.year}-{now.month}-{now.day}_{now.hour}:{now.minute}.png'
+			fig.savefig(plot_path)
+		fig.savefig('static/image.png')
+		plt.close(fig)
+		send_image_to_server('static/image.png')
+	except Exception as e:
+		print(f"Could not plot schedule: {e}", end=" ")
+
 
 
 def ifCharge(charge_schedule, now):
@@ -384,7 +396,7 @@ def send_image_to_server(image_path, verbose=False):
 			print("Not able to contact server!", end=" ")
 		return None
 
-def get_now(*args):
+def get_now(*args, verbose=True):
 	"""
 		This function get the current time and the utc offset
 		
@@ -399,7 +411,8 @@ def get_now(*args):
 		return now, utc_offset
 	
 	now = datetime.datetime.now()
-	print(now, end=" ")
+	if verbose:
+		print(now, end=" ")
 	timezone = pytz.timezone(tz_region)
 	utc_offset = timezone.localize(now).utcoffset().seconds/3600
 	return now, utc_offset
@@ -455,10 +468,14 @@ def create_data_file():
 
 	return data
 
-def connected_to_lan():
+def connected_to_lan(test=False):
 	# initializing URL
 	url = router_url
 	timeout = 10
+
+	if test:
+		return True
+
 	try:
 			# requesting URL
 			request = requests.get(url,
@@ -468,7 +485,7 @@ def connected_to_lan():
 	# catching exception
 	except (requests.ConnectionError,
 					requests.Timeout) as exception:
-			print("Internet is off")
+			print("Internet is off", end=' ')
 			return False
 
 def next_datetime(current: datetime.datetime, hour: int, **kwargs):
@@ -477,75 +494,58 @@ def next_datetime(current: datetime.datetime, hour: int, **kwargs):
         repl = repl + datetime.timedelta(days=1)
     return repl
 
+import pandas as pd
+
 def save_log(data, now, connected, available, response):
-	"""
-	This function saves the log data to a file
-	Arguments:
-		data: data used in main function to keep track of current status
-		now: current time
-		connected: status from GARO
-		available: status from GARO
-		response: status from the server, what user has selected
+    """
+    This function saves the log data to a file
+    Arguments:
+        data: data used in main function to keep track of current status
+        now: current time
+        connected: status from GARO
+        available: status from GARO
+        response: status from the server, what user has selected
+    """
+    max_lines = 1000
 
-	"""
-	txt_str = ''
-	txt_str += f"Time: {now}; "
-	txt_str += f"Garo: {connected}; "
-	txt_str += f"Available: {available}; "
-	txt_str += f"Response: "
-	if response == None:
-		txt_str += "None, "	
-	else:
-		if response['auto'] == 1:
-			txt_str += "Auto = 1, "
-		elif response['fast_smart'] == 1:
-			txt_str += "Fast smart = 1, "
-		elif response['on'] == 1:
-			txt_str += "On = 1, "
-		elif response['full'] == 1:
-			txt_str += "Full = 1, "
-		else:
-			txt_str += "All = 0, "
-		txt_str += f"set_time = {response['set_time']}, "
-		txt_str += f"fas_value = {response['fas_value']}, "
-		txt_str += f"kwh_per_week = {response['kwh_per_week']}; "
+    data_dict = {
+        "Time": now,
+        "G Connected": connected,
+        "G Available": available,
+        "R Auto": response['auto'],
+        "R Fast_smart": response['fast_smart'],
+        "R On": response['on'],
+        "R Full": response['full'],
+        "R Set time": response['set_time'],
+        "R Fas value": response['fas_value'],
+        "R kwh per week": response['kwh_per_week'],
+        "R Hours": response['hours'],
+        "D New down load": data['new_down_load'],
+        "D Auto": data['auto'],
+        "D Fast smart": data['fast_smart'],
+        "D On": data['on'],
+        "D Remaining hours": data['remaining_hours'],
+        "D Charge": data['charge'],
+        "D Charging": data['charging'],
+        "D Connected": data['connected'],
+        "D Hours": data['hours'],
+        "D Full": data['full'],
+        "D AC": data['ac'],
+        "D Available": data['available'],
+        "D Set time": data['set_time'],
+        "D Fas value": data['fas_value'],
+        "D kwh per week": data['kwh_per_week'],
+        "D Schedule": "No" if data['schedule'].empty else "YES",
+				"D Nordpool data": "No" if data['nordpool'].empty or data['nordpool'].iloc[-1]['TimeStamp'] < now else "YES"
+    }
 
-		txt_str += f"Data: "
-		txt_str += f"New down load = {data['new_down_load']}, "
-		txt_str += f"Auto = {data['auto']}, "
-		txt_str += f"Fast smart = {data['fast_smart']}, "
-		txt_str += f"On = {data['on']}, "
-		txt_str += f"Remaining hours = {data['remaining_hours']}, "
-		txt_str += f"Charge = {data['charge']}, "
-		txt_str += f"Charging = {data['charging']}, "
-		txt_str += f"Connected = {data['connected']}, "
-		txt_str += f"Hours = {data['hours']}, "
-		txt_str += f"Full = {data['full']}, "
-		txt_str += f"AC = {data['ac']}, "
-		txt_str += f"Available = {data['available']}, "	
-		txt_str += f"Set time = {data['set_time']}, "
-		txt_str += f"Fas value = {data['fas_value']}, "
-		txt_str += f"kwh per week = {data['kwh_per_week']}; "
+    data_df = pd.DataFrame([data_dict])
 
-		if data['schedule'].empty:
-			txt_str += "Schedule: None"
-		else:
-			txt_str += f"Schedule: YES"
-
-		max_lines = 1000
-		log_file = 'data/log.txt'
-
-		with open(log_file, 'r') as f:
-			lines = f.readlines()
-			if len(lines) >= max_lines:
-				lines = lines[-(max_lines - 1):]
-
-		lines.append(txt_str + '\n')
-
-		with open(log_file, 'w') as f:
-			f.writelines(lines)
-
-
-
-
-
+    try:
+        log = pd.read_csv('data/log.csv')
+        log = pd.concat([log, data_df], ignore_index=True)
+        if len(log) > max_lines:
+            log = log.iloc[-max_lines:]
+        log.to_csv('data/log.csv', index=False)
+    except FileNotFoundError:
+        data_df.to_csv('data/log.csv', index=False)

@@ -5,12 +5,16 @@ from nordpool import elspot, elbas
 from pprint import pprint
 import pandas as pd
 import datetime
+
 import pickle
-from GARO.garo import get_Garo_status, on_off_Garo
-from LEAF.leaf import leaf_status, start_climat_control, stop_climat_control
-from NordPool.nordPool import getDataNordPool
+from GARO.garo import get_Garo_status
+
+from SpotPrice.spotprice import getSpotPrice
 from CHARGE.charge import get_chargeSchedule, ifCharge, changeChargeStatusGaro, get_button_state, get_now, lowTemp, create_data_file, set_button_state, connected_to_lan, plot_nordpool_data, plot_data_schedule, get_charge_fraction, save_log
 import random
+import numpy as np
+import DEBUG.debug as debug
+
 
 
 """
@@ -23,7 +27,7 @@ if os.getenv('PYTHONDEBUG', '0') == '1':
 else:
 		argument = sys.argv[0].lower()
 		if argument == "test":
-			print("Program in TJest mode!")
+			print("Program in Test mode!")
 			test = True
 		else:
 			print("Program in normal mode!")
@@ -31,6 +35,7 @@ else:
 
 if test:
 	print("Test mode")
+	test_debug = debug.TestDebug()
 else:
 	print("Normal mode")
 
@@ -38,11 +43,18 @@ try:
 	with open('data/saved_data.pkl', 'rb') as f:
 		file_content = f.read()
 		data = pickle.loads(file_content)
+
 except:
 	data = create_data_file()
-data['nordpool']['TimeStamp'] = pd.to_datetime(data['nordpool']['TimeStamp'])	
+
+try:
+	data['nordpool']['TimeStamp'] = pd.to_datetime(data['nordpool']['TimeStamp'])	
+except:
+	data['nordpool'] = pd.DataFrame()
+
+
 plot_nordpool_data(data['nordpool'])
-time_to_sleep = 60  # It is needed because asking GARO to often generates problems
+time_to_sleep = 54  # It is needed because asking GARO to often generates problems
 print("Start or restart")
 now, utc_offset = get_now()
 print()
@@ -55,9 +67,8 @@ if 'kwh_per_week' not in data:
 	data['kwh_per_week'] = 50
 
 if test:
-	time_to_sleep = 5
-	# schedule = pd.DataFrame()
-	# data['schedule'] = schedule
+	time_to_sleep = 0.1
+
 _ = set_button_state({'auto':data['auto'],
 											'full':data['full'],
 											'fast_smart':data['fast_smart'],
@@ -68,38 +79,43 @@ _ = set_button_state({'auto':data['auto'],
 											'kwh_per_week':data['kwh_per_week']
 
 })
+
 while True:
 	now, utc_offset = get_now()
 	
-	if not connected_to_lan():
+	if not connected_to_lan(test=test):
 		time.sleep(time_to_sleep)
-		print()
 		continue
 
 	# If it is more than 24 h since last download, download!
 	 
-	if ( now - data['last_down_load'] > datetime.timedelta(hours=24)) or \
+	if ( data['nordpool'].empty or \
+		now - data['last_down_load'] > datetime.timedelta(hours=24)) or \
 		(data['nordpool']['TimeStamp'].iloc[-1] - now < datetime.timedelta(hours=9)) or \
 			(now - data['nordpool']['TimeStamp'].iloc[0] < datetime.timedelta(hours=0)) :
 
-		nordpool = getDataNordPool(utc_offset=utc_offset, now=now, prev_data=data['nordpool'])
+		nordpool = getSpotPrice(now=now, prev_data=data['nordpool'], test=test)
 		plot_nordpool_data(nordpool)
 		
 		last_down_load = datetime.datetime(year=now.year, month=now.month, day=now.day, hour=14)
-		new_download = True
+		if nordpool.empty:
+			new_download = False
+		else:
+			new_download = True
 		data['nordpool'] = nordpool
 		data['last_down_load'] = last_down_load
 		data['new_down_load'] = new_download
 		
 	# Current status from GARO	
-	connected, available = get_Garo_status()
+	connected, available = get_Garo_status(test=test)
 	# Respons from webserver
 	response = get_button_state()
 	if test:
-		# connected = random.choice(['CONNECTED', 'NOT_CONNECTED', 'CHARGING', 'CHARGING_PAUSED', 'CHARGING_FINISHED'])
-		# available = random.choice(['ALWAYS_OFF', 'ALWAYS_ON', 'SCHEMA'])
-		data['connected'] = 'NOT_CONNECTED'
-		print(f"Test connected: {connected}, available: {available}")
+		# Get combinations
+		response, available, nord_pool_data, schedule, connected = test_debug.get_next_combination()
+		# Update state
+		data = test_debug.update_state(data, now)
+
 
 	if connected == None or connected == 'CHARGING_PAUSED':
 		time.sleep(time_to_sleep)
@@ -109,27 +125,10 @@ while True:
 	# Response options
 	# connected: "NOT_CONNECTED", "CONNECTED", "DISABLED", 'CHARGING_PAUSED', 'CHARGING_FINISHED', 'CHARGING':
 	# available: "ALWAYS_OFF", "ALWAYS_ON", "SCHEMA":
-	# TODO might need to implement something that takes care of long periods of 'CHARGING_PAUSED'
 
 	if (connected != "NOT_CONNECTED") and (connected != "CHARGING_FINISHED"):
 
 		
-
-		if test:
-			# response['auto'] = 0
-			# response['fast_smart'] = 0
-			# response['on'] = 0
-			# pattern = random.choice(['auto'])
-			# response[pattern] = 1
-
-			# hours = random.choice([3, 20])
-			# response['hours'] = hours
-			# response['set_time'] = random.choice([5,7,16])
-			# response['fas_value'] = random.choice([1,3])
-			# response['kwh_per_week'] = random.choice([40,80])
-			print(f"Test response	: {response}")
-
-
 		# If no response
 		if response == None:
 			time.sleep(time_to_sleep)
@@ -137,11 +136,19 @@ while True:
 			save_log(data, now, connected, available, response)
 			continue
 
+		#########################################################
+		# Emergancy! Problem with the last download!					  #
+		#########################################################
+		if data['nordpool'].empty or data['nordpool']['TimeStamp'].iloc[-1] < now:
+			print("Emergency charge!", end=" ")
+			charge = True
+			data['charge'] = charge
+	
 
 		#########################################################
 		# If everthing was like last time										 		#	
 		#########################################################
-		if response['auto'] == data['auto'] and \
+		elif response['auto'] == data['auto'] and \
 				response['full'] == data['full'] and \
 				response['fast_smart'] == data['fast_smart'] and \
 				response['on'] == data['on'] and \
@@ -227,7 +234,7 @@ while True:
 		# remaining hours to charge or still schedule										#
 		#################################################################
 		if data['new_down_load']:
-
+			print("New data!", end=" ")
 			if not data['schedule'].empty:
 				schedule = data['schedule']
 				sub_schedule = schedule[schedule['TimeStamp'] > now]
@@ -304,6 +311,7 @@ while True:
 		data['on'] = 0
 		data['full'] = 0
 
+		# Update webstate
 		_  = set_button_state({'auto':data['auto'],
 												'fast_smart':data['fast_smart'],
 												'on':data['on'], 
@@ -349,6 +357,7 @@ while True:
 	###################   UPDATE CHARGE STATUS   ########################
 	#																																		#
 	#####################################################################
+
 	charging, connected, available = changeChargeStatusGaro(charging=data['charging'], 
 																												charge=data['charge'], 
 																												connected=connected, 
