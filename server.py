@@ -13,8 +13,10 @@ DEFAULT_SETTINGS = {
     'hours': 5,
     'set_time': 12,
     'fas_value': 1,
-    'kwh_per_week': 50
+    'kwh_per_week': 50,
+    'status': 'Hej'
 }
+
 def update_file(settings):
     try:
         with open('web_data.txt', 'w') as f:
@@ -27,21 +29,22 @@ def update_file(settings):
 def load_settings():
     try:
         with open('web_data.txt', 'r') as f:
-            # Read lines and convert them to integers
             lines = f.readlines()
             if len(lines) != len(DEFAULT_SETTINGS):
                 raise ValueError("File content does not match expected format.")
-            settings = {key: int(value.strip()) for key, value in zip(DEFAULT_SETTINGS.keys(), lines)}
+            settings = {}
+            for key, value in zip(DEFAULT_SETTINGS.keys(), lines):
+                if key == 'status':
+                    settings[key] = value.strip()
+                else:
+                    settings[key] = int(value.strip())
     except (FileNotFoundError, ValueError, IndexError):
-        # Use default settings if file is missing or content is invalid
-        settings = DEFAULT_SETTINGS
-        # Optionally, initialize the file with default settings
+        settings = DEFAULT_SETTINGS.copy()
         update_file(settings)
     return settings
 
 # Load settings at startup
 settings = load_settings()
-
 
 @app.route('/')
 def index():
@@ -50,7 +53,7 @@ def index():
 @app.route('/<deviceName>/<action>')
 def action(deviceName, action):
     if action == 'on':
-        settings.update({key: 0 for key in settings.keys() if key not in ['hours', 'set_time', 'fas_value', 'kwh_per_week']})
+        settings.update({key: 0 for key in settings.keys() if key not in ['hours', 'set_time', 'fas_value', 'kwh_per_week', 'status']})
         settings[deviceName] = 1
     elif action == 'off':
         settings[deviceName] = 0
@@ -96,35 +99,15 @@ def update_set_time():
     update_file(settings)
     return redirect('/')
 
-# @app.route('/set_state', methods=['POST'])
-# def set_state():
-#     global auto_Sts, full_Sts, fast_smart_Sts, now_Sts, set_time, hours
-#     data = request.get_json()
-#     if data:
-#         if 'auto' in data:
-#             auto_Sts = data['auto']
-#         if 'full' in data:
-#             full_Sts = data['full']    
-#         if 'fast_smart' in data:
-#             fast_smart_Sts = data['fast_smart']
-#         if 'on' in data:
-#             now_Sts = data['on']        
-#         if 'hours' in data:
-#             hours = data['hours']    
-#         if 'set_time' in data:
-#             set_time = data['set_time']
-#     update_file()
-#     return redirect('/')
-
 @app.route('/set_state', methods=['POST'])
 def set_state():
     data = request.get_json()
     if data:
-        for key in ['auto', 'full', 'fast_smart', 'on', 'hours', 'set_time']:
+        for key in ['auto', 'full', 'fast_smart', 'on', 'hours', 'set_time', 'status']:
             if key in data:
                 settings[key] = data[key]
     update_file(settings)
-    return redirect('/')
+    return jsonify(settings)
 
 @app.route('/upload_image', methods=['POST'])
 def upload_image():

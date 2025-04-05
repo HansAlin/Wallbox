@@ -10,6 +10,7 @@
     <center>
     <header>
         <h1>Charger Control</h1>
+        <h2>Charge status: {{ status }}</h2>
     </header>
 
     <section class="control-section">
@@ -24,13 +25,13 @@
 
         <form action="/set_value" method="post">
             <h3>KWH per Week</h3>
-            <input type="number" id="kwh_per_week" name="kwh_per_week" value="{{ kwh_per_week }}">
+            <input type="number" id="kwh_per_week" name="kwh_per_week" value="{{ kwh_per_week }}" class="input-number">
             <button type="submit" class="button">Submit</button>
         </form>
 
         <form action="/set_value" method="post">
             <h3>Current option</h3>
-            <select name="fas_value" id="fas_value">
+            <select name="fas_value" id="fas_value", class="input-number">
                 <option value=3 {% if fas_value == 3 %}selected{% endif %}>FAS 3</option>
                 <option value=1 {% if fas_value == 1 %}selected{% endif %}>FAS 1</option>
             </select>    
@@ -49,15 +50,15 @@
         {% endif %}
 
         <form action="/set_value" method="post">
-            <label for="hours">Hours needed:</label>
-            <input type="text" id="hours" name="hours" value="{{ hours }}">
+            <label for="hours" class="input-head">Hours needed:</label>
+            <input type="text" id="hours" name="hours" value="{{ hours }}" class="input-number">
             <button type="submit" class="button">Submit</button>
         </form>
 
         <p>Charged within: {{ '%02d' % set_time if set_time is defined else '00' }}:00 h</p> 
         <form action="/set_time" method="post">
-            <label for="set_time">Change time:</label>
-            <select id="set_time" name="set_time">
+            <label for="set_time" class="input-head">Change time:</label>
+            <select id="set_time" name="set_time" class="input-number">
                 {% for i in range(24) %}
                     <option value="{{ '%02d' % i }}:00" {% if i == set_time %}selected{% endif %}>{{ '%02d' % i }}:00</option>
                 {% endfor %}
@@ -73,11 +74,13 @@
             <a href="/on/off" class="button">TURN OFF</a>
         {% else %}
             <h2> OFF </h2>
-            <a href="/now/on" class="button">TURN ON</a>
+            <a href="/on/on" class="button">TURN ON</a>
         {% endif %}
     </section>
-    <img src="{{ url_for('static', filename='image.png') }}" alt="Description of image">
-    <img src="{{ url_for('static', filename='plot_nordpool.png') }}" alt="Description of image">
+    <div class="image-container">
+        <img src="{{ url_for('static', filename='image.png') }}" alt="Description of image">
+        <img src="{{ url_for('static', filename='plot_nordpool.png') }}" alt="Description of image">
+    </div>
     </center>
 </body>
 </html>

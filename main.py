@@ -10,7 +10,7 @@ import pickle
 from GARO.garo import get_Garo_status
 
 from SpotPrice.spotprice import getSpotPrice
-from CHARGE.charge import get_chargeSchedule, ifCharge, changeChargeStatusGaro, get_button_state, get_now, lowTemp, create_data_file, set_button_state, connected_to_lan, plot_nordpool_data, plot_data_schedule, get_charge_fraction, save_log
+from CHARGE.charge import get_chargeSchedule, update_charge_schedule, if_status_quo, ifCharge, changeChargeStatusGaro, get_button_state, get_now, lowTemp, create_data_file, set_button_state, connected_to_lan, plot_nordpool_data, plot_data_schedule, get_charge_fraction, save_log, power_constraints, if_download_nordpool_data
 import random
 import numpy as np
 import DEBUG.debug as debug
@@ -52,11 +52,11 @@ try:
 except:
 	data['nordpool'] = pd.DataFrame()
 
-
-plot_nordpool_data(data['nordpool'])
+now, utc_offset = get_now()
+plot_nordpool_data(data['nordpool'], now)
 time_to_sleep = 54  # It is needed because asking GARO to often generates problems
 print("Start or restart")
-now, utc_offset = get_now()
+
 print()
 
 if 'set_time' not in data:
@@ -69,10 +69,7 @@ if 'kwh_per_week' not in data:
 if test:
 	time_to_sleep = 0.1
 
-_ = set_button_state({'auto':data['auto'],
-											'full':data['full'],
-											'fast_smart':data['fast_smart'],
-											'on':data['on'],
+_ = set_button_state({'charge_type':data['charge_type'],
 											'hours':data['hours'],
 											'set_time':data['set_time'],
 											'fas_value':data['fas_value'],
@@ -87,24 +84,24 @@ while True:
 		time.sleep(time_to_sleep)
 		continue
 
-	# If it is more than 24 h since last download, download!
-	 
-	if ( data['nordpool'].empty or \
-		now - data['last_down_load'] > datetime.timedelta(hours=24)) or \
-		(data['nordpool']['TimeStamp'].iloc[-1] - now < datetime.timedelta(hours=9)) or \
-			(now - data['nordpool']['TimeStamp'].iloc[0] < datetime.timedelta(hours=0)) :
+	# Download data if neccecary
+	if_download_nordpool_data(data, now, test=test) 
+	# if ( data['nordpool'].empty or \
+	# 	now - data['last_down_load'] > datetime.timedelta(hours=24)) or \
+	# 	(data['nordpool']['TimeStamp'].iloc[-1] - now < datetime.timedelta(hours=9)) or \
+	# 		(now - data['nordpool']['TimeStamp'].iloc[0] < datetime.timedelta(hours=0)) :
 
-		nordpool = getSpotPrice(now=now, prev_data=data['nordpool'], test=test)
-		plot_nordpool_data(nordpool)
+	# 	nordpool  = getSpotPrice(now=now, prev_data=data['nordpool'], test=test)
+	# 	plot_nordpool_data(nordpool)
 		
-		last_down_load = datetime.datetime(year=now.year, month=now.month, day=now.day, hour=14)
-		if nordpool.empty:
-			new_download = False
-		else:
-			new_download = True
-		data['nordpool'] = nordpool
-		data['last_down_load'] = last_down_load
-		data['new_down_load'] = new_download
+	# 	last_down_load = datetime.datetime(year=now.year, month=now.month, day=now.day, hour=14)
+	# 	if nordpool.empty: #TODO Maybe also if nordpool == data['nordpool'] then no new download
+	# 		new_download = False
+	# 	else:
+	# 		new_download = True
+	# 	data['nordpool'] = nordpool
+	# 	data['last_down_load'] = last_down_load
+	# 	data['new_down_load'] = new_download
 		
 	# Current status from GARO	
 	connected, available = get_Garo_status(test=test)
@@ -133,7 +130,6 @@ while True:
 		if response == None:
 			time.sleep(time_to_sleep)
 			print()
-			save_log(data, now, connected, available, response)
 			continue
 
 		#########################################################
@@ -148,75 +144,16 @@ while True:
 		#########################################################
 		# If everthing was like last time										 		#	
 		#########################################################
-		elif response['auto'] == data['auto'] and \
-				response['full'] == data['full'] and \
-				response['fast_smart'] == data['fast_smart'] and \
-				response['on'] == data['on'] and \
-				response['hours'] == data['hours'] and \
-				response['set_time'] == data['set_time'] and \
-				response['fas_value'] == data['fas_value'] and \
-				response['kwh_per_week'] == data['kwh_per_week'] and \
-				 not (connected != "NOT_CONNECTED" and data['connected'] == "NOT_CONNECTED"):
-				
-			
-			
+		elif if_status_quo(data, response, connected):
 			print("No change!", end=" ")
 
-		######################   AUTO         #########################	
-		# The response from webserver have been changed to auto,  		#
+		###   UPDATE SCHEDULE SOMETHING CHANGED #######################
+		# The response from webserver have been changed           		#
 		# or the car has been connected			                      		#
 		###############################################################
-		elif response['auto'] == 1:
-
-			schedule= get_chargeSchedule(hour_to_charged=12, 
-																	nordpool_data=data['nordpool'], 
-																	now=now, 
-																	pattern='auto',
-																	charge_fraction=get_charge_fraction( response['fas_value'], response['kwh_per_week']))
-			data['schedule'] = schedule
-			
-		######################   FAST_SMART   ###########################
-		# or the car has been connected and is in fast_smart mode     	#		
-		# and was not cached in previous statement										  #
-		#################################################################
-		elif response['fast_smart']:
-
-			hours = response['hours']
-			schedule = get_chargeSchedule(hour_to_charged=hours, 
-																		nordpool_data=data['nordpool'], 
-																		now=now, 
-																		set_time=response['set_time'],
-																		pattern='fast_smart')
-			data['schedule'] = schedule
-
-		#####################      ON          ##########################
-		# The response from webserver have been changed to on,					#
-		# or the car has been connected and is in on mode 'on'					#
-		# and was not cached in previous statement											#
-		#################################################################
-		elif response['on']== 1:
-
-			schedule = get_chargeSchedule(hour_to_charged=16, 
-																		nordpool_data=data['nordpool'], 
-																		now=now, 
-																		pattern='on' )
-			data['schedule'] = schedule
-
-		#################################################################
-		# The response is off																						#
-		#################################################################	
-		elif response['auto'] == 0 and response['fast_smart'] == 0 and response['on']== 0:
-			schedule = pd.DataFrame()
-			charge = False
-			data['schedule'] = schedule
-			data['charge'] = charge
-
-		####################     CHARGING      ##########################
-		# Update the values from GARO to align with data in the program	#
-		#################################################################
-		elif connected == "CHARGING":
-			data['charging'] = True
-
+		else:
+			print("Update schedule!", end=" ")
+			update_charge_schedule(data, response, connected)
 
 		####################     CHARGING      ##########################
 		# Determine if the car should be charged or not	acording to		  #
@@ -233,46 +170,23 @@ while True:
 		# If  new data is downloaded from nordpool. And there is still 	#
 		# remaining hours to charge or still schedule										#
 		#################################################################
+
 		if data['new_down_load']:
 			print("New data!", end=" ")
-			if not data['schedule'].empty:
-				schedule = data['schedule']
-				sub_schedule = schedule[schedule['TimeStamp'] > now]
-				if response['auto'] == 1:
-					pattern = 'auto'
-					hours_to_charged = 12
-				elif response['fast_smart'] == 1:
-					pattern = 'fast_smart'
-					hours_to_charged = len(sub_schedule)
-				elif response['on'] == 1:
-					pattern = 'on'
-					charged_hours = len(schedule[schedule['TimeStamp'] < now])
-					hours_to_charged = 16 - charged_hours
-				elif response['full'] == 1:
-					pattern = 'full'
-					hours_to_charged = len(sub_schedule)
-			else:
-				pattern = 'auto'
-				hours_to_charged = 12
+			if not data['schedule'].empty and \
+				response['charge_type'] == 'auto':
+				print("Update schedule!", end=" ")
+				update_charge_schedule(data, response, connected)
 
-			schedule = get_chargeSchedule(hour_to_charged=hours_to_charged, 
-																								nordpool_data=data['nordpool'], 
-																								now=now, 
-																								pattern=pattern,
-																								set_time=response['set_time'],
-																								charge_fraction=get_charge_fraction( response['fas_value'], response['kwh_per_week']))
-			data['schedule'] = schedule
 
 		#################################################################
 		# Turn status to auto as default																#
 		#################################################################
-		if (response['on'] == 1 or \
-				response['full'] == 1 or \
-				response['fast_smart'] == 1) and \
-					data['schedule'].empty:
+		if response['charge_type'] == 'on' or 'fast_smart' \
+				and data['schedule'].empty:
 			
 			print("Default auto!", end=" ")
-			_  = set_button_state({'auto':1,'fast_smart':0,'on':0, 'full':0})
+			_  = set_button_state({'charge_type':response['charge_type']})
 
 		###############      LOW TEMP			###############################
 		# If the temperature is low, charge the car!										#
@@ -281,12 +195,9 @@ while True:
 		#################################################################
 		if lowTemp():
 			print("Low temp!", end=" ")
+			charge = True
+			data['charge'] = charge
 
-			if response['full'] == 1:
-					if data['schedule'].empty: # We are after last charge time and car has not disconnected
-						print(" and charging full!", end=" ")
-						charge = True
-						data['charge'] = charge
 
 		###################  IF SCHEDULE IS OUT OF DATE  ###################
 		# If the schedule is out of date, delete it												 #
@@ -306,16 +217,10 @@ while True:
 		schedule = pd.DataFrame()
 
 		print("Default auto!", end=" ")
-		data['auto'] = 1
-		data['fast_smart'] = 0
-		data['on'] = 0
-		data['full'] = 0
+		data['charge_type'] = 'auto'
 
 		# Update webstate
-		_  = set_button_state({'auto':data['auto'],
-												'fast_smart':data['fast_smart'],
-												'on':data['on'], 
-												'full':data['full']})
+		_  = set_button_state({'charge_type':response['charge_type']})
 
 		data['schedule'] = schedule
 		data['charge'] = charge
@@ -329,15 +234,10 @@ while True:
 		schedule = pd.DataFrame()
 
 		print("Default auto!", end=" ")
-		data['auto'] = 1
-		data['fast_smart'] = 0
-		data['on'] = 0
-		data['full'] = 0
+		data['charge_type'] = 'auto'
 
-		_  = set_button_state({'auto':data['auto'],
-												'fast_smart':data['fast_smart'],
-												'on':data['on'], 
-												'full':data['full']})
+		# Update webstate
+		_  = set_button_state({'charge_type':response['charge_type']})
 	
 		data['schedule'] = schedule
 		data['charge'] = charge
@@ -357,6 +257,13 @@ while True:
 	###################   UPDATE CHARGE STATUS   ########################
 	#																																		#
 	#####################################################################
+	# Considering power constraints
+	if data['charge']:
+		#TODO How to handle if the status is auto, fast_smart or on and how it 
+		# should be influence the charging status and charging current.
+
+		data['charge'] = power_constraints(response['charge_type'])
+		pass		
 
 	charging, connected, available = changeChargeStatusGaro(charging=data['charging'], 
 																												charge=data['charge'], 
@@ -369,16 +276,14 @@ while True:
 	data['new_down_load'] = new_download
 	data['connected'] = connected
 	data['available'] = available
-	data['auto'] = response['auto']
-	data['full'] = response['full']
-	data['fast_smart'] = response['fast_smart']
-	data['on'] = response['on']
+	data['charge_type'] = response['charge_type']
 	data['hours'] = response['hours']
 	data['set_time'] = response['set_time']
 	data['fas_value'] = response['fas_value']
 	data['kwh_per_week'] = response['kwh_per_week']
+	_ = set_button_state({'status':connected})
 	
-	plot_nordpool_data(data['nordpool'])
+	plot_nordpool_data(data['nordpool'], now)
 	plot_data_schedule(data['schedule'], data['nordpool'],now)
 
 	with open('data/saved_data.pkl', 'wb') as f:

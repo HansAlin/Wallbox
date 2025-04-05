@@ -1,1 +1,1 @@
-{'auto': 0, 'full': 1, 'fast_smart': 0, 'on': 0, 'available': 'ALWAYS_OFF', 'connection': 'DISABLED', 'hours': 15, 'set_time': 0, 'fas_value': 1, 'kwh_per_week': 10, 'nord_pool_data': 'OLD_DATA', 'schedule': 'SCHEDULE'}
+{'auto': 0, 'full': 1, 'fast_smart': 0, 'on': 0, 'available': 'ALWAYS_OFF', 'connection': 'DISABLED', 'hours': 15, 'set_time': 0, 'fas_value': 1, 'kwh_per_week': 10, 'nord_pool_data': 'DATA', 'schedule': 'NO_SCHEDULE'}

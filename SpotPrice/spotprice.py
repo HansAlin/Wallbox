@@ -1,5 +1,5 @@
 from CONFIG.config import region, currency, days_of_histroical_data
-from CHARGE.charge import get_now
+#from CHARGE.charge import get_now
 import requests
 import datetime
 import pickle
@@ -14,11 +14,15 @@ def fetch_elprisetjustnu_data(now, region, verbose=False):
 	year = now.year
 	month = now.month
 	day = now.day
+
+	# Make month two digits
+	month = str(month).zfill(2)
+
 	# Make day two digits
-	if day < 10:
-		day = f"0{day}"	
+	day = str(day).zfill(2)
 
 	# Construct the URL
+	# Data from https://www.elprisetjustnu.se/
 	get_url = f"https://www.elprisetjustnu.se/api/v1/prices/{year}/{month}-{day}_{region}.json"
 	if verbose:
 		print(f"URL: {get_url}")
@@ -261,6 +265,45 @@ def load_data():
 	except:
 		df = pd.DataFrame()
 	return df	
+
+def get_nordpool_data(now, test=False):
+	"""
+	This function loads data from the file log_nordpool.pkl and 
+	check weather the data is up to date. If not, it gets the new data.
+
+	Returns:
+		pd.DataFrame: The data
+	"""
+
+	log_nord_pool_data = load_data()
+	if log_nord_pool_data.empty:
+		log_nord_pool_data = getSpotPrice(now=now, prev_data=log_nord_pool_data, test=test)
+		save_data(log_nord_pool_data)
+
+	# If data is missing, download new data
+	last_time_stamp = log_nord_pool_data['TimeStamp'].iloc[-1]
+	if last_time_stamp < now:
+		log_nord_pool_data = getSpotPrice(now=now, prev_data=log_nord_pool_data, test=test)
+		save_data(log_nord_pool_data)
+
+	return log_nord_pool_data
+
+def get_current_price(now):
+	"""
+	This function gets the current price from the data.
+
+	Returns:
+		float: The current price
+	"""
+
+	# Nordpool data
+	log_nord_pool_data = get_nordpool_data(now)
+	# Get the current price  
+	mask = (log_nord_pool_data['TimeStamp'] > (now - datetime.timedelta(hours=1))) & (log_nord_pool_data['TimeStamp'] < now)
+	time_row = log_nord_pool_data[mask]
+	current_value = time_row['value']
+
+	return current_value
 
 def concat_data(prev_data, new_data):	
 	if new_data.empty:
