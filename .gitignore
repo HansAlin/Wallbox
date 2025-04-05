@@ -10,7 +10,7 @@ config.py
 test_leafpy.py
 test_set_button_state.py
 *.pyc 
-energy_cal.py
+
 get_local_data.sh
 elprisetjustnu.json
 web_data.txt
