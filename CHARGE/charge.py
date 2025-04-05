@@ -542,9 +542,7 @@ def create_data_file():
 	data['nordpool'] = pd.DataFrame()
 	data['last_down_load'] = datetime.datetime.now() - datetime.timedelta(hours=24)
 	data['new_down_load'] = False 
-	data['auto'] = 0
-	data['fast_smart'] = 0
-	data['on'] = 0
+	data['charge_type'] = 'auto'
 	data['schedule'] = pd.DataFrame()
 	data['charge'] = False
 	data['charging'] = True
