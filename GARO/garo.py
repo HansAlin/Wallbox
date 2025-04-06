@@ -1,15 +1,10 @@
 
-from selenium import webdriver
-from selenium.webdriver.support.ui import Select
-from selenium.webdriver.common.by import By
+
 import time
 import requests
+import json
 from CONFIG.config import url_garo
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.action_chains import ActionChains
-import logging
-import re
+
 import random
 
 def get_Garo_status(test=False):
@@ -50,57 +45,33 @@ def get_current_consumtion(test=False):
 	if test:
 		return {'fas1': random.random()*10, 'fas2': random.random()*10, 'fas3': random.random()*10}	
 
-	wait_time = 30
-
-	options =  webdriver.ChromeOptions()
-	options.add_argument('--headless')
-	options.add_argument('--log-level=OFF')
-	options.add_argument('--disable-infobars')
-	options.add_argument('--disable-gpu')
-	options.add_experimental_option('excludeSwitches', ['disable-logging'])
-	options.add_argument('--disk-cache-size=0')
+	meterinfo_url = url_garo + '/servlet/rest/chargebox/meterinfo/EXTERNAL'
 
 	try:
-		# For raspberry pi /usr/bin/chromedriver
-		#driver = webdriver.Chrome(r'/usr/bin/chromedriver', options=options)
-		
-		
-		driver = webdriver.Chrome(options=options)
-		url = url_garo + "/serialweb/"
-		driver.get(url)
+		response = requests.get(meterinfo_url)
+		# Check response
+		if response.status_code != 200:
+				raise Exception(f"Failed to get meter info: {response.status_code}, {response.text}")
 
-		# Wait for the element to be clickable
-		wait = WebDriverWait(driver, wait_time)
-		div = wait.until(EC.element_to_be_clickable((By.CLASS_NAME, "ui-collapsible-heading-toggle")))
-		
-		# Scroll the element into view
-		driver.execute_script("arguments[0].scrollIntoView(true);", div)
-		div.click()
-
-		x1 = driver.find_element(By.ID, "localphase1").text
-		x2 = driver.find_element(By.ID, "localphase2").text
-		x3 = driver.find_element(By.ID, "localphase3").text
-		driver.close()
-		driver.quit()
-
-		x1 = x1.split(': ')[1].split('A/')[0]
-		x2 = x2.split(': ')[1].split('A/')[0]
-		x3 = x3.split(': ')[1].split('A/')[0]
+		# Parse JSON
+		data = response.json()
+			
+		phase1Current = data.get('phase1Current')
+		phase2Current = data.get('phase2Current')
+		phase3Current = data.get('phase3Current')
+		readTime = data.get('readTime')
  
 
-		x1 = float(x1)
-		x2 = float(x2)
-		x3 = float(x3)
+		phase1Current = float(phase1Current)/10
+		phase2Current = float(phase2Current)/10
+		phase3Current = float(phase3Current)/10
 
-		print(f'1: {x1:>5.1f} A, 2: {x2:>5.1f} A, 3: {x3:>5.1f} A', end=" ")
+		print(f'1: {phase1Current:>5.1f} A, 2: {phase2Current:>5.1f} A, 3: {phase3Current:>5.1f} A, {readTime}', end=" ")
 
-		return {'fas1':x1, 'fas2':x2, 'fas3':x3}
+		return {'fas1':phase1Current, 'fas2':phase2Current, 'fas3':phase3Current, 'readTime':readTime}
 	except Exception as e:
 		print(f'Not able to update status in GARO!', end=" ")
-		if driver:
-			driver.close()
-			driver.quit()
-		return None
+
 
 
 
@@ -109,147 +80,91 @@ def on_off_Garo(value):
 	This function takes the argument value and sets 
 	the Garo Charger to: "1" = on, "0" = off, "2" = Schedule
 	"""	
-	# TODO remove
-	# For raspberry pi 
-	# r'/usr/bin/chromedriver'
 
-	options =  webdriver.ChromeOptions()
-	options.add_argument('--headless')
-	options.add_argument('--log-level=OFF')
-	options.add_argument('--disable-infobars')
-	options.add_argument('--disable-gpu')
-	options.add_experimental_option('excludeSwitches', ['disable-logging'])
-	options.add_argument('--disk-cache-size=0')
+	if value == '1':
+		value = 'ALWAYS_ON'
+	elif value == '0':
+		value = 'ALWAYS_OFF'
+	elif value == '2':
+		value = 'SCHEMA'
 
+	# The URL to which the POST request will be sent
+	url = url_garo + '/servlet/rest/chargebox/mode/' + value
+
+	# Optional: Data you want to send with the request (if any)
+	# For example, if you need to send a specific payload, include it here.
+	# If no data is needed, you can omit this or send an empty dictionary.
+	data = {
+			'mode': value  # The data to send (if required by the API)
+	}
 	try:
-		# For raspberry pi /usr/bin/chromedriver
-		driver = webdriver.Chrome(options=options)
+		# Sending a POST request to the URL
+		response = requests.post(url, data=data)
 
-		url = url_garo + "/serialweb/"
-		driver.get(url)
-
-		# Click the div to reveal the select options
-		controlmode_button = WebDriverWait(driver, 30).until(
-			EC.element_to_be_clickable((By.ID, "controlmode-button"))
-		)
-		controlmode_button.click()
-
-		# Wait for the select element to be present
-		x = WebDriverWait(driver, 10).until(
-		EC.presence_of_element_located((By.ID, "controlmode"))
-    	)
-
-		drop = Select(x)
-		drop.select_by_value(value)
-
-		# Verify the selected value
-		selected_option = drop.first_selected_option.get_attribute("value")
-		if selected_option == value:
-			status_updated = True
+		# Check if the request was successful
+		if response.status_code == 200:
+				print('Request successful!')
+				print('Response:', response.text)  # Optional: print the response from the server
 		else:
-			status_updated = False
-
-		driver.close()
-		driver.quit()
-		print('Status updated in GARO!:', end=" ")
-		return status_updated
-	except Exception as e:
-		print(f'Not able to update status in GARO!: {e}', end=" ")
-		return False
-
+				print(f'Error: {response.status_code}')
+				print('Response:', response.text)  # Print response to debug
+	except requests.exceptions.RequestException as e:
+		print(f"Error occurred: {e}")
+		return None
 
 
 def set_Garo_current(value):
 	"""
 	This function sets the current in GARO
 	"""    
-	options = webdriver.ChromeOptions()
-	options.add_argument('--headless')
-	options.add_argument('--log-level=OFF')
-	options.add_argument('--disable-infobars')
-	options.add_argument('--disable-gpu')
-	options.add_experimental_option('excludeSwitches', ['disable-logging'])
-	options.add_argument('--disk-cache-size=0')
+	# Value has to be between 6 and 13
+	if value < 6:
+		value = 6
+	elif value > 13:
+		value = 13
 
-	wait_time = 5
+	config_url = f"{url_garo}/servlet/rest/chargebox/config"
 
-	try:
-			driver = webdriver.Chrome(options=options)
+	response = requests.get(config_url)
+	if response.status_code != 200:
+			raise Exception(f"Failed to get config: {response.status_code}, {response.text}")
 
-			url = url_garo + "/serialweb/"
-			driver.get(url)
+	config = response.json()
+
+	# Step 2: Modify only what you need
+	config["reducedIntervalsEnabled"] = True
+	config["reducedCurrentIntervals"] = [
+			{
+					"schemaId": 1,
+					"start": "00:00:00",
+					"stop": "23:59:59",
+					"weekday": 8,  # possibly "every day"
+					"chargeLimit": value  # new current limit
+			}
+	]
+
+	# Step 3: POST the updated config
+	post_url = f"{url_garo}/servlet/rest/chargebox/currentlimit"
+	headers = {"Content-Type": "application/json"}
+
+	post_response = requests.post(post_url, headers=headers, data=json.dumps(config))
+
+	#  Check the response
+	if post_response.status_code == 200:
+		print(f"Successfully set current limit to {value}A", end=" ")	
+	else:
+		print(f"Failed to set current limit: {post_response.status_code}", end=" ")
 
 
-			# Click on "Settings"
-			settings = WebDriverWait(driver, wait_time).until(
-					EC.element_to_be_clickable((By.LINK_TEXT, 'Settings'))
-			)
-			settings.click()
-
-			# Click "+" on "Charge current settings / DLM"
-			charge_current_settings = WebDriverWait(driver, wait_time).until(
-					EC.element_to_be_clickable((By.CSS_SELECTOR, "#settings > div.ui-content > div:nth-child(2) > ul > li:nth-child(6) > h2 > a"))
-			)
-			driver.execute_script("arguments[0].scrollIntoView(true);", charge_current_settings)
-			charge_current_settings.click()
-
-			# Locate the existing period element using a regular expression
-			period_elements = driver.find_elements(By.CSS_SELECTOR, "a.ui-btn")
-			existing_period = None
-			for element in period_elements:
-					if re.match(r"00:00\s*-\s*24:00\s*-\s*\d{1,2}A", element.get_attribute("title")):
-							existing_period = element
-							break
-
-			if existing_period:
-					driver.execute_script("arguments[0].scrollIntoView(true);", existing_period)
-					driver.execute_script("arguments[0].click();", existing_period)
-			else:
-					# Add a new period if no match is found
-					add_new_period = WebDriverWait(driver, 10).until(
-							EC.element_to_be_clickable((By.CSS_SELECTOR, "a[href='javascript:openAddCurrentLimitPopup()'][data-icon='plus']"))
-					)
-					driver.execute_script("arguments[0].scrollIntoView(true);", add_new_period)
-					add_new_period.click()
-
-			# Change current limit
-			current_limit = WebDriverWait(driver, wait_time).until(
-					EC.element_to_be_clickable((By.ID, 'currentlimit'))
-			)
-			current_limit.clear()
-			current_limit.send_keys(value)
-
-			# To confirm the change, click on "Add/Save"
-			add_save = WebDriverWait(driver, wait_time).until(
-					EC.element_to_be_clickable((By.CSS_SELECTOR, "a[onclick='addCurrentLimitPeriod();']"))
-			)
-			driver.execute_script("arguments[0].scrollIntoView(true);", add_save)
-			driver.execute_script("arguments[0].click();", add_save)
-
-	except Exception as e:
-			print(f'Not able to update status in GARO!: {e}', end=" ")
-			return False
-
-	finally:
-			driver.close()
-			driver.quit()
-			print(f'Current updated in GARO: {value}A', end=" ")
-			return True
 
 
 
 if __name__ == '__main__':
-	# Test the functions
-	# on_off_Garo('1')
-	# on_off_Garo('0')
+	
 
-	#get_Garo_status()
+	#set_Garo_current(6)
 	#get_current_consumtion()
-	for i in range(6, 14):
-		#set_Garo_current(i)
-		time.sleep(10)
-		get_current_consumtion()
-		set_Garo_current(i)
-
+	#on_off_Garo('2')
+	get_Garo_status()
 
   

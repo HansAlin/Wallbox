@@ -32,7 +32,7 @@ else:
 		else:
 			print("Program in normal mode!")
 			test = False	
-
+test = False
 if test:
 	print("Test mode")
 	test_debug = debug.TestDebug()
@@ -53,8 +53,7 @@ except:
 	data['nordpool'] = pd.DataFrame()
 
 now, utc_offset = get_now()
-plot_nordpool_data(data['nordpool'], now)
-time_to_sleep = 54  # It is needed because asking GARO to often generates problems
+time_to_sleep = 15  # It is needed because asking GARO to often generates problems
 print("Start or restart")
 
 print()
@@ -85,7 +84,7 @@ while True:
 		continue
 
 	# Download data if neccecary
-	if_download_nordpool_data(data, now, test=test) 
+	data = if_download_nordpool_data(data, now, test=test) 
 	# if ( data['nordpool'].empty or \
 	# 	now - data['last_down_load'] > datetime.timedelta(hours=24)) or \
 	# 	(data['nordpool']['TimeStamp'].iloc[-1] - now < datetime.timedelta(hours=9)) or \
@@ -153,7 +152,7 @@ while True:
 		###############################################################
 		else:
 			print("Update schedule!", end=" ")
-			update_charge_schedule(data, response, connected)
+			data = update_charge_schedule(data, response, connected)
 
 		####################     CHARGING      ##########################
 		# Determine if the car should be charged or not	acording to		  #
@@ -176,7 +175,7 @@ while True:
 			if not data['schedule'].empty and \
 				response['charge_type'] == 'auto':
 				print("Update schedule!", end=" ")
-				update_charge_schedule(data, response, connected)
+				data = update_charge_schedule(data, response, connected)
 
 
 		#################################################################
@@ -248,11 +247,7 @@ while True:
 			schedule = pd.DataFrame()
 			data['schedule'] = schedule
 			data['charge'] = charge
-		else:
-			print("Not connected!", end=" ")
-			time.sleep(time_to_sleep)
-			print()
-			continue
+
 
 	###################   UPDATE CHARGE STATUS   ########################
 	#																																		#
@@ -283,8 +278,6 @@ while True:
 	data['kwh_per_week'] = response['kwh_per_week']
 	_ = set_button_state({'status':connected})
 	
-	plot_nordpool_data(data['nordpool'], now)
-	plot_data_schedule(data['schedule'], data['nordpool'],now)
 
 	with open('data/saved_data.pkl', 'wb') as f:
 			pickle.dump(data,f)

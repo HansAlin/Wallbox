@@ -1,6 +1,15 @@
-from flask import Flask, render_template, request, jsonify, redirect
+from flask import Flask, render_template, request, jsonify, redirect, send_file
 import os
+import matplotlib
+matplotlib.use('Agg') 
 from werkzeug.utils import secure_filename
+import pickle
+import time
+import threading
+import matplotlib.pyplot as plt
+
+import io
+import pandas as pd
 
 app = Flask(__name__)
 
@@ -24,6 +33,20 @@ def update_file(settings):
                 f.write(str(settings[key]) + '\n')
     except IOError as e:
         print(f"Error writing to file: {e}")
+
+def read_pkl_file():
+
+    global state
+    with open('data/saved_data.pkl', 'rb') as f:
+        file_content = f.read()
+        state = pickle.loads(file_content)
+    state['nordpool']['TimeStamp'] = pd.to_datetime(state['nordpool']['TimeStamp'])	    
+
+def update_periodically():
+    while True:
+        read_pkl_file()
+        time.sleep(20)  # Wait for 20 seconds
+
 
 # Initialize settings from file or use defaults
 def load_settings():
@@ -118,5 +141,44 @@ def upload_image():
     image.save(os.path.join('static', filename))
     return '', 200
 
+@app.route('/plot.png')
+def plot_png(): 
+    nordpool = state['nordpool']
+    value = nordpool['value'].values
+    time = nordpool['TimeStamp'].values
+    
+    schedule = state['schedule']
+    # Schedule is not empty mark the schedule times in the plot green
+    if not schedule.empty:
+        schedule['TimeStamp'] = pd.to_datetime(schedule['TimeStamp'])
+        schedule_times = schedule['TimeStamp'].values
+    else:
+        schedule_times = []
+
+    now = pd.to_datetime('now')
+
+    fig, axs = plt.subplots(1, 1, figsize=(10, 5))
+    
+    # Plot bars with different colors based on schedule match
+    for t, v in zip(time, value):
+        if t in schedule_times:
+            axs.bar(t, v, width=0.03, color='green')
+        else:
+            axs.bar(t, v, width=0.03, color='blue')
+    axs.axvline(now, color='red', linestyle='--', label='Now')
+    axs.set_title('Price Nordpool', fontsize=24)
+    axs.set_xlabel('Time', fontsize=20)
+    axs.set_ylabel('Öre', fontsize=20)
+    axs.legend()
+    axs.grid(True)
+    plt.tight_layout()
+    img = io.BytesIO()
+    plt.savefig(img, format='png')
+    img.seek(0)
+    return send_file(img, mimetype='image/png')
+
 if __name__ == '__main__':
+    # Start the periodic update in a separate thread
+    threading.Thread(target=update_periodically, daemon=True).start()
+    read_pkl_file()
     app.run(debug=True, port=5000, host='0.0.0.0')

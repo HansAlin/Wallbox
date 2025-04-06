@@ -188,7 +188,6 @@ def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern, set_time=No
 	print(f"Value lim: {value_lim}")
 	print("Charging schedule:")
 	print(charge_schedule)
-	plot_data_schedule(charge_schedule, nordpool_data, now, save_uniqe_plots=False)
 
 	return charge_schedule
 
@@ -406,38 +405,39 @@ def get_button_state():
 	try:
 		response = requests.get(server_url + '/get_status', timeout=20)
 		if response.status_code ==  200:
-						data = response.json()
+			data = response.json()
+			new_data = {}
+			new_data['hours'] = data['hours']
+			new_data['set_time'] = data['set_time']
+			new_data['fas_value'] = data['fas_value']
+			new_data['kwh_per_week'] = data['kwh_per_week']
+			new_data['status'] = data['status']
+
+			print("Web respons:", end=" ")
+			if data == None:
+				print("None", end=" ")	
+				return None
+			elif data['auto'] == 1:
+				new_data['charge_type'] = 'auto'
+			elif data['on'] == 1:
+				new_data['charge_type'] = 'on'
+			elif data['fast_smart'] == 1:
+				new_data['charge_type'] = 'fast_smart'	
+			else:
+				new_data['charge_type'] = 'off'
+
+			print(f"Charge type: {new_data['charge_type']}", end=" ")	
+			print(f"Hours: {new_data['hours']}", end=" ")			
+					
+			return new_data
+
 		else:
-						print("Failed to recive data", end=" ")
-						data = None
+			print("Failed to recive data", end=" ")
+			return None
 	except requests.exceptions.RequestException as e:
-					print("An error occured: ", e, end=" ")
-					data = None
+			print("An error occured: ", e, end=" ")
+			return None
 	
-	new_data = {}
-	new_data['hours'] = data['hours']
-	new_data['set_time'] = data['set_time']
-	new_data['fas_value'] = data['fas_value']
-	new_data['kwh_per_week'] = data['kwh_per_week']
-	new_data['status'] = data['status']
-
-	print("Web respons:", end=" ")
-	if data == None:
-		print("None", end=" ")	
-		return None
-	elif data['auto'] == 1:
-		new_data['charge_type'] = 'auto'
-	elif data['on'] == 1:
-		new_data['charge_type'] = 'on'
-	elif data['fast_smart'] == 1:
-		new_data['charge_type'] = 'fast_smart'	
-	else:
-		new_data['charge_type'] = 'off'
-
-	print(f"Charge type: {new_data['charge_type']}", end=" ")	
-	print(f"Hours: {new_data['hours']}", end=" ")			
-			
-	return new_data
 
 
 def set_button_state(state):
@@ -660,6 +660,8 @@ def if_download_nordpool_data(data, now, test=False):
 	else:
 		data['new_down_load'] = False
 
+	return data	
+
 def if_status_quo(data, response, connected):
 	"""
 	This function checks if response and data are the same as last time.
@@ -687,6 +689,8 @@ def update_charge_schedule(data, response, now):
 	elif response['charge_type'] == 'off':
 		data['schedule'] = pd.DataFrame()
 		print("Charge schedule: OFF", end=" ")	
+
+	return data	
 
 	
 

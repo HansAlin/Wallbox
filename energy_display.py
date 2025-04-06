@@ -10,21 +10,29 @@ import json
 import time
 from datetime import datetime
 import pandas as pd
+import pickle
 
 app = Flask(__name__)
 socketio = SocketIO(app)
 
 # Global variable to store data
 data = {}
+state = {}
 
 def read_json_file():
     global data
+
     with open('data/energy_status.json', 'r') as file:
         content = file.read().strip()
         if content:  # Check if the file is not empty
             data = json.loads(content)
         else:
             data = {}  # Set data to an empty dictionary if the file is empty
+
+    global state
+    with open('data/saved_data.pkl', 'rb') as f:
+        file_content = f.read()
+        state = pickle.loads(file_content)
 
 def update_data_periodically():
     while True:
