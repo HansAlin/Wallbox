@@ -7,13 +7,12 @@ from bs4 import BeautifulSoup
 import matplotlib.pyplot as plt	
 import time
 import json
-import pickle
+
 
 from matplotlib.dates import DateFormatter
 
 from GARO.garo import on_off_Garo, get_Garo_status
 from CONFIG.config import low_temp_url, server_url, tz_region, router_url, low_price
-from energy_display import read_json_file
 from SpotPrice.spotprice import getSpotPrice
 
 

@@ -1,26 +1,13 @@
 import sys
 import os
 import time
-from nordpool import elspot, elbas
-from pprint import pprint
 import pandas as pd
 import datetime
 
 import pickle
 from GARO.garo import get_Garo_status
 
-from SpotPrice.spotprice import getSpotPrice
-from CHARGE.charge import get_chargeSchedule, update_charge_schedule, if_status_quo, ifCharge, changeChargeStatusGaro, get_button_state, get_now, lowTemp, create_data_file, set_button_state, connected_to_lan, plot_nordpool_data, plot_data_schedule, get_charge_fraction, save_log, power_constraints, if_download_nordpool_data
-import random
-import numpy as np
-import DEBUG.debug as debug
-
-
-
-"""
-
-"""
-
+import CHARGE.charge as cc 
 
 if os.getenv('PYTHONDEBUG', '0') == '1':
     test = True
@@ -35,7 +22,7 @@ else:
 test = False
 if test:
 	print("Test mode")
-	test_debug = debug.TestDebug()
+	test_debug = cc.debug.TestDebug()
 else:
 	print("Normal mode")
 
@@ -45,14 +32,14 @@ try:
 		data = pickle.loads(file_content)
 
 except:
-	data = create_data_file()
+	data = cc.create_data_file()
 
 try:
 	data['nordpool']['TimeStamp'] = pd.to_datetime(data['nordpool']['TimeStamp'])	
 except:
 	data['nordpool'] = pd.DataFrame()
 
-now, utc_offset = get_now()
+now, utc_offset = cc.get_now()
 time_to_sleep = 15  # It is needed because asking GARO to often generates problems
 print("Start or restart")
 
@@ -68,7 +55,7 @@ if 'kwh_per_week' not in data:
 if test:
 	time_to_sleep = 0.1
 
-_ = set_button_state({'charge_type':data['charge_type'],
+_ = cc.set_button_state({'charge_type':data['charge_type'],
 											'hours':data['hours'],
 											'set_time':data['set_time'],
 											'fas_value':data['fas_value'],
@@ -77,14 +64,14 @@ _ = set_button_state({'charge_type':data['charge_type'],
 })
 
 while True:
-	now, utc_offset = get_now()
+	now, utc_offset = cc.get_now()
 	
-	if not connected_to_lan(test=test):
+	if not cc.connected_to_lan(test=test):
 		time.sleep(time_to_sleep)
 		continue
 
 	# Download data if neccecary
-	data = if_download_nordpool_data(data, now, test=test) 
+	data = cc.if_download_nordpool_data(data, now, test=test) 
 	# if ( data['nordpool'].empty or \
 	# 	now - data['last_down_load'] > datetime.timedelta(hours=24)) or \
 	# 	(data['nordpool']['TimeStamp'].iloc[-1] - now < datetime.timedelta(hours=9)) or \
@@ -105,7 +92,7 @@ while True:
 	# Current status from GARO	
 	connected, available = get_Garo_status(test=test)
 	# Respons from webserver
-	response = get_button_state()
+	response = cc.get_button_state()
 	if test:
 		# Get combinations
 		response, available, nord_pool_data, schedule, connected = test_debug.get_next_combination()
@@ -116,7 +103,7 @@ while True:
 	if connected == None or connected == 'CHARGING_PAUSED':
 		time.sleep(time_to_sleep)
 		print()
-		save_log(data, now, connected, available, response)
+		cc.save_log(data, now, connected, available, response)
 		continue
 	# Response options
 	# connected: "NOT_CONNECTED", "CONNECTED", "DISABLED", 'CHARGING_PAUSED', 'CHARGING_FINISHED', 'CHARGING':
@@ -143,7 +130,7 @@ while True:
 		#########################################################
 		# If everthing was like last time										 		#	
 		#########################################################
-		elif if_status_quo(data, response, connected):
+		elif cc.if_status_quo(data, response, connected):
 			print("No change!", end=" ")
 
 		###   UPDATE SCHEDULE SOMETHING CHANGED #######################
@@ -152,14 +139,14 @@ while True:
 		###############################################################
 		else:
 			print("Update schedule!", end=" ")
-			data = update_charge_schedule(data, response, connected)
+			data = cc.update_charge_schedule(data, response, connected)
 
 		####################     CHARGING      ##########################
 		# Determine if the car should be charged or not	acording to		  #
 		# the schedule and the time now.														    #	
 		#################################################################
 		if  not data['schedule'].empty:
-			charge = ifCharge(charge_schedule=data['schedule'], now=now)
+			charge = cc.ifCharge(charge_schedule=data['schedule'], now=now)
 		else:
 			charge = False
 		
@@ -175,7 +162,7 @@ while True:
 			if not data['schedule'].empty and \
 				response['charge_type'] == 'auto':
 				print("Update schedule!", end=" ")
-				data = update_charge_schedule(data, response, connected)
+				data = cc.update_charge_schedule(data, response, connected)
 
 
 		#################################################################
@@ -185,14 +172,14 @@ while True:
 				and data['schedule'].empty:
 			
 			print("Default auto!", end=" ")
-			_  = set_button_state({'charge_type':response['charge_type']})
+			_  = cc.set_button_state({'charge_type':response['charge_type']})
 
 		###############      LOW TEMP			###############################
 		# If the temperature is low, charge the car!										#
 		# Only if temp device is connected!	Oherwise it it it return	  #
 		# false.																												#													  
 		#################################################################
-		if lowTemp():
+		if cc.lowTemp():
 			print("Low temp!", end=" ")
 			charge = True
 			data['charge'] = charge
@@ -219,7 +206,7 @@ while True:
 		data['charge_type'] = 'auto'
 
 		# Update webstate
-		_  = set_button_state({'charge_type':response['charge_type']})
+		_  = cc.set_button_state({'charge_type':response['charge_type']})
 
 		data['schedule'] = schedule
 		data['charge'] = charge
@@ -236,7 +223,7 @@ while True:
 		data['charge_type'] = 'auto'
 
 		# Update webstate
-		_  = set_button_state({'charge_type':response['charge_type']})
+		_  = cc.set_button_state({'charge_type':response['charge_type']})
 	
 		data['schedule'] = schedule
 		data['charge'] = charge
@@ -257,10 +244,10 @@ while True:
 		#TODO How to handle if the status is auto, fast_smart or on and how it 
 		# should be influence the charging status and charging current.
 
-		data['charge'] = power_constraints(response['charge_type'])
+		data['charge'] = cc.power_constraints(response['charge_type'])
 		pass		
 
-	charging, connected, available = changeChargeStatusGaro(charging=data['charging'], 
+	charging, connected, available = cc.changeChargeStatusGaro(charging=data['charging'], 
 																												charge=data['charge'], 
 																												connected=connected, 
 																												available=available,
@@ -276,11 +263,11 @@ while True:
 	data['set_time'] = response['set_time']
 	data['fas_value'] = response['fas_value']
 	data['kwh_per_week'] = response['kwh_per_week']
-	_ = set_button_state({'status':connected})
+	_ = cc.set_button_state({'status':connected})
 	
 
 	with open('data/saved_data.pkl', 'wb') as f:
 			pickle.dump(data,f)
-	save_log(data, now, connected, available, response)	
+	cc.save_log(data, now, connected, available, response)	
 	print()
 	time.sleep(time_to_sleep)

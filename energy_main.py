@@ -1,13 +1,6 @@
 import sys
 import time
-import datetime
-import thingspeak
 import os
-
-from GARO.garo import get_current_consumtion, get_Garo_status
-from SpotPrice.spotprice import load_data, getSpotPrice, save_data, get_nordpool_data, get_current_price
-from CHARGE.charge import get_now
-from CONFIG.config import channel_id, api_key
 import ENERGY.energy_cal as ec
 
 test=False
@@ -27,20 +20,21 @@ print('Starting energy calculation')
 energy_cal = ec.Energy()
 sleep_time = energy_cal.sleep_time
 
-
+"""  WARNING: The script pygmentize is installed in '/home/hans/.local/bin' which is not on PATH.
+  Consider adding this directory to PATH or, if you prefer to suppress this warning, use --no-warn-script-location."""
 
 while(True):
 
-  #try:
-  _ = energy_cal.update(test=test)
+  try:
+    _ = energy_cal.update(test=test)
 
-  print()
+    print()
 
-  # except Exception as e:
-  #   print('Error: ', e)
-  #   print('Failed to update channel')
-  #   time.sleep(sleep_time)
-  #   continue
+  except Exception as e:
+    print('Error: ', e)
+    print('Failed to update channel')
+    time.sleep(sleep_time)
+    continue
 
 
   time.sleep(sleep_time)  

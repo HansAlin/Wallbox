@@ -1,8 +1,4 @@
-
-
-import time
 import requests
-import json
 from CONFIG.config import url_garo
 
 import random
