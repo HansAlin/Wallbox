@@ -29,6 +29,7 @@ header {
   background-color: #007bff;
   color: white;
   padding: 10px;
+  font-size: 15px
 }
 
 .input-number {
@@ -37,31 +38,31 @@ header {
   border: 1px solid #ccc;
   border-radius: 5px;
   background-color: white;
-  font-size: 30px; /* Adjust the font size as needed */
+  font-size: 20px; /* Adjust the font size as needed */
   width: 100px;
 }
 
 .input-head {
-  margin: 20px;
-  padding: 10px;
+  margin: 5px;
+  padding: 5px;
   border: 1px solid #ccc;
   border-radius: 5px;
   background-color: white;
-  font-size: 30px; /* Adjust the font size as needed */
+  font-size: 20px; /* Adjust the font size as needed */
 }
 
 .control-section {
-  margin: 10px;
-  padding: 10px;
+  margin: 1px;
+  padding: 1px;
   border: 1px solid #ccc;
   border-radius: 5px;
   background-color: white;
-  font-size: 30px;
+  font-size: 15px;
 }
 
 .button {
   display: inline-block;
-  padding: 10px 20px;
+  padding: 5px 5px;
   background-color: #007bff;
   color: white;
   text-decoration: none;
@@ -69,7 +70,7 @@ header {
   border-radius: 5px;
   cursor: pointer;
   transition: background-color 0.3s ease;
-  font-size: 30px;
+  font-size: 20px;
 }
 
 .button:hover {

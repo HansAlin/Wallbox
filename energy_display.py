@@ -60,7 +60,7 @@ def index():
                 .header {
                     background-color: #4CAF50;
                     color: white;
-                    padding: 15px;
+                    padding: 5px;
                     text-align: center;
                 }
                 .content {
@@ -68,13 +68,13 @@ def index():
                     text-align: center;
                 }
                 h1 {
-                    font-size: 4em;
+                    font-size: 1em;
                 }
                 p {
-                    font-size: 2em;
+                    font-size: 1em;
                 }
                 img {
-                    width: 90%;
+                    width: 100%;
                     height: auto;
                 }
             </style>
