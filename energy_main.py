@@ -8,7 +8,7 @@ from GARO.garo import get_current_consumtion, get_Garo_status
 from SpotPrice.spotprice import load_data, getSpotPrice, save_data, get_nordpool_data, get_current_price
 from CHARGE.charge import get_now
 from CONFIG.config import channel_id, api_key
-import energy_cal as ec
+import ENERGY.energy_cal as ec
 
 test=False
 if os.getenv('PYTHONDEBUG', '0') == '1':
