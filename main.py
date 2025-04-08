@@ -258,11 +258,12 @@ while True:
 	data['new_down_load'] = new_download
 	data['connected'] = connected
 	data['available'] = available
-	data['charge_type'] = response['charge_type']
-	data['hours'] = response['hours']
-	data['set_time'] = response['set_time']
-	data['fas_value'] = response['fas_value']
-	data['kwh_per_week'] = response['kwh_per_week']
+	if response != None:
+		data['charge_type'] = response['charge_type']
+		data['hours'] = response['hours']
+		data['set_time'] = response['set_time']
+		data['fas_value'] = response['fas_value']
+		data['kwh_per_week'] = response['kwh_per_week']
 	_ = cc.set_button_state({'status':connected})
 	
 

@@ -11,6 +11,9 @@ import time
 from datetime import datetime
 import pandas as pd
 import pickle
+import pygal
+from pygal.style import LightStyle
+import cairosvg 
 
 app = Flask(__name__)
 socketio = SocketIO(app)
@@ -138,6 +141,9 @@ def plot_png():
     plt.savefig(img, format='png')
     img.seek(0)
     return send_file(img, mimetype='image/png')
+
+
+
 
 def get_local_ip():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)

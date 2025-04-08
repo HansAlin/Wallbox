@@ -582,50 +582,59 @@ def next_datetime(current: datetime.datetime, hour: int, **kwargs):
 import pandas as pd
 
 def save_log(data, now, connected, available, response):
-    """
-    This function saves the log data to a file
-    Arguments:
-        data: data used in main function to keep track of current status
-        now: current time
-        connected: status from GARO
-        available: status from GARO
-        response: status from the server, what user has selected
-    """
-    max_lines = 1000
+	"""
+	This function saves the log data to a file
+	Arguments:
+	data: data used in main function to keep track of current status
+	now: current time
+	connected: status from GARO
+	available: status from GARO
+	response: status from the server, what user has selected
+	"""
+	max_lines = 1000
 
-    data_dict = {
-        "Time": now,
-        "G Connected": connected,
-        "G Available": available,
-        "R Charge type": response['charge_type'],
-        "R Set time": response['set_time'],
-        "R Fas value": response['fas_value'],
-        "R kwh per week": response['kwh_per_week'],
-        "R Hours": response['hours'],
-        "D New down load": data['new_down_load'],
-        "D Charge type": data['charge_type'],
-        "D Charge": data['charge'],
-        "D Charging": data['charging'],
-        "D Connected": data['connected'],
-        "D Hours": data['hours'],
-        "D Available": data['available'],
-        "D Set time": data['set_time'],
-        "D Fas value": data['fas_value'],
-        "D kwh per week": data['kwh_per_week'],
-        "D Schedule": "No" if data['schedule'].empty else "YES",
-				"D Nordpool data": "No" if data['nordpool'].empty or data['nordpool'].iloc[-1]['TimeStamp'] < now else "YES"
-    }
+	if response == None:
+		response = {}
+		response['charge_type'] = None
+		response['set_time'] = None
+		response['fas_value'] = None
+		response['kwh_per_week'] = None
+		response['hours'] = None
 
-    data_df = pd.DataFrame([data_dict])
 
-    try:
-        log = pd.read_csv('data/log.csv')
-        log = pd.concat([log, data_df], ignore_index=True)
-        if len(log) > max_lines:
-            log = log.iloc[-max_lines:]
-        log.to_csv('data/log.csv', index=False)
-    except FileNotFoundError:
-        data_df.to_csv('data/log.csv', index=False)
+	data_dict = {
+	"Time": now,
+	"G Connected": connected,
+	"G Available": available,
+	"R Charge type": response['charge_type'],
+	"R Set time": response['set_time'],
+	"R Fas value": response['fas_value'],
+	"R kwh per week": response['kwh_per_week'],
+	"R Hours": response['hours'],
+	"D New down load": data['new_down_load'],
+	"D Charge type": data['charge_type'],
+	"D Charge": data['charge'],
+	"D Charging": data['charging'],
+	"D Connected": data['connected'],
+	"D Hours": data['hours'],
+	"D Available": data['available'],
+	"D Set time": data['set_time'],
+	"D Fas value": data['fas_value'],
+	"D kwh per week": data['kwh_per_week'],
+	"D Schedule": "No" if data['schedule'].empty else "YES",
+	"D Nordpool data": "No" if data['nordpool'].empty or data['nordpool'].iloc[-1]['TimeStamp'] < now else "YES"
+	}
+
+	data_df = pd.DataFrame([data_dict])
+
+	try:
+		log = pd.read_csv('data/log.csv')
+		log = pd.concat([log, data_df], ignore_index=True)
+		if len(log) > max_lines:
+			log = log.iloc[-max_lines:]
+		log.to_csv('data/log.csv', index=False)
+	except FileNotFoundError:
+		data_df.to_csv('data/log.csv', index=False)
 
 def if_download_nordpool_data(data, now, test=False):
 	""""

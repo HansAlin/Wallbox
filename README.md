@@ -5,6 +5,7 @@ The code is currently running on a UBUNTU machine. However, the goal is to imple
 
 ## Notes
 1. In the code, there is a function that reads the temperature from a device on my roof. The reason for that is the power should be available when it is low temperature. If you don't implement temperature reader the function just returns False, it is not low temperature.
+2. Remeber to set correct timezone espacially if you are using a Raspberry Pi. Like: sudo timedatectl set-timezone <Your_Time_Zone>
  
 
 ## Config file

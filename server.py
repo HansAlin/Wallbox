@@ -26,32 +26,38 @@ DEFAULT_SETTINGS = {
     'status': 'Hej'
 }
 
+SETTINGS_FILE = 'web_data.txt'
+PICKLE_FILE = 'data/saved_data.pkl'
+UPDATE_INTERVAL = 20  # seconds
+
+settings = {}
+state = {}
+
 def update_file(settings):
     try:
-        with open('web_data.txt', 'w') as f:
+        with open(SETTINGS_FILE, 'w') as f:
             for key in DEFAULT_SETTINGS:
                 f.write(str(settings[key]) + '\n')
     except IOError as e:
         print(f"Error writing to file: {e}")
 
 def read_pkl_file():
-
     global state
-    with open('data/saved_data.pkl', 'rb') as f:
-        file_content = f.read()
-        state = pickle.loads(file_content)
-    state['nordpool']['TimeStamp'] = pd.to_datetime(state['nordpool']['TimeStamp'])	    
+    try:
+        with open(PICKLE_FILE, 'rb') as f:
+            state = pickle.load(f)
+        state['nordpool']['TimeStamp'] = pd.to_datetime(state['nordpool']['TimeStamp'])
+    except (IOError, pickle.UnpicklingError) as e:
+        print(f"Error reading pickle file: {e}")
 
 def update_periodically():
     while True:
         read_pkl_file()
-        time.sleep(20)  # Wait for 20 seconds
+        time.sleep(UPDATE_INTERVAL)
 
-
-# Initialize settings from file or use defaults
 def load_settings():
     try:
-        with open('web_data.txt', 'r') as f:
+        with open(SETTINGS_FILE, 'r') as f:
             lines = f.readlines()
             if len(lines) != len(DEFAULT_SETTINGS):
                 raise ValueError("File content does not match expected format.")
@@ -66,7 +72,6 @@ def load_settings():
         update_file(settings)
     return settings
 
-# Load settings at startup
 settings = load_settings()
 
 @app.route('/')
@@ -90,23 +95,12 @@ def get_status():
 
 @app.route('/set_value', methods=['POST'])
 def set_value():
-    if 'hours' in request.form:
-        try:
-            settings['hours'] = int(request.form['hours'])
-        except ValueError:
-            settings['hours'] = DEFAULT_SETTINGS['hours']
-
-    if 'fas_value' in request.form:
-        try:
-            settings['fas_value'] = int(request.form['fas_value'])
-        except ValueError:
-            settings['fas_value'] = DEFAULT_SETTINGS['fas_value']
-
-    if 'kwh_per_week' in request.form:
-        try:
-            settings['kwh_per_week'] = int(request.form['kwh_per_week'])
-        except ValueError:
-            settings['kwh_per_week'] = DEFAULT_SETTINGS['kwh_per_week']
+    for key in ['hours', 'fas_value', 'kwh_per_week']:
+        if key in request.form:
+            try:
+                settings[key] = int(request.form[key])
+            except ValueError:
+                settings[key] = DEFAULT_SETTINGS[key]
 
     update_file(settings)
     return redirect('/')
@@ -116,7 +110,7 @@ def update_set_time():
     new_time = request.form.get('set_time', '')
     try:
         settings['set_time'] = int(new_time.split(":")[0])
-    except ValueError:
+    except (ValueError, IndexError):
         settings['set_time'] = DEFAULT_SETTINGS['set_time']
 
     update_file(settings)
@@ -128,7 +122,13 @@ def set_state():
     if data:
         for key in ['auto', 'full', 'fast_smart', 'on', 'hours', 'set_time', 'status']:
             if key in data:
-                settings[key] = data[key]
+                try:
+                    if key in ['hours', 'set_time']:
+                        settings[key] = int(data[key])
+                    else:
+                        settings[key] = data[key]
+                except ValueError:
+                    settings[key] = DEFAULT_SETTINGS[key]
     update_file(settings)
     return jsonify(settings)
 
@@ -138,17 +138,21 @@ def upload_image():
         return "No image in request", 400
     image = request.files['image']
     filename = secure_filename(image.filename)
+    if filename == '':
+        return "Invalid image filename", 400
     image.save(os.path.join('static', filename))
     return '', 200
 
 @app.route('/plot.png')
 def plot_png(): 
-    nordpool = state['nordpool']
+    nordpool = state.get('nordpool', pd.DataFrame())
+    if nordpool.empty:
+        return "No data available", 404
+
     value = nordpool['value'].values
     time = nordpool['TimeStamp'].values
     
-    schedule = state['schedule']
-    # Schedule is not empty mark the schedule times in the plot green
+    schedule = state.get('schedule', pd.DataFrame())
     if not schedule.empty:
         schedule['TimeStamp'] = pd.to_datetime(schedule['TimeStamp'])
         schedule_times = schedule['TimeStamp'].values
@@ -159,7 +163,6 @@ def plot_png():
 
     fig, axs = plt.subplots(1, 1, figsize=(10, 5))
     
-    # Plot bars with different colors based on schedule match
     for t, v in zip(time, value):
         if t in schedule_times:
             axs.bar(t, v, width=0.03, color='green')
@@ -178,7 +181,6 @@ def plot_png():
     return send_file(img, mimetype='image/png')
 
 if __name__ == '__main__':
-    # Start the periodic update in a separate thread
     threading.Thread(target=update_periodically, daemon=True).start()
     read_pkl_file()
     app.run(debug=True, port=5000, host='0.0.0.0')
