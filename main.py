@@ -5,7 +5,8 @@ import pandas as pd
 import datetime
 
 import pickle
-from GARO.garo import get_Garo_status
+import GARO.garo as garo
+import CONFIG.config as conf
 
 import CHARGE.charge as cc 
 
@@ -33,6 +34,11 @@ try:
 
 except:
 	data = cc.create_data_file()
+# Set timestamp to datetime
+data['last_down_load'] = pd.to_datetime(data['last_down_load'])
+
+
+
 
 try:
 	data['nordpool']['TimeStamp'] = pd.to_datetime(data['nordpool']['TimeStamp'])	
@@ -40,7 +46,7 @@ except:
 	data['nordpool'] = pd.DataFrame()
 
 now, utc_offset = cc.get_now()
-time_to_sleep = 15  # It is needed because asking GARO to often generates problems
+time_to_sleep = conf.sleep_time  # It is needed because asking GARO to often generates problems
 print("Start or restart")
 
 print()
@@ -65,6 +71,7 @@ _ = cc.set_button_state({'charge_type':data['charge_type'],
 
 while True:
 	now, utc_offset = cc.get_now()
+	print()
 	
 	if not cc.connected_to_lan(test=test):
 		time.sleep(time_to_sleep)
@@ -72,25 +79,12 @@ while True:
 
 	# Download data if neccecary
 	data = cc.if_download_nordpool_data(data, now, test=test) 
-	# if ( data['nordpool'].empty or \
-	# 	now - data['last_down_load'] > datetime.timedelta(hours=24)) or \
-	# 	(data['nordpool']['TimeStamp'].iloc[-1] - now < datetime.timedelta(hours=9)) or \
-	# 		(now - data['nordpool']['TimeStamp'].iloc[0] < datetime.timedelta(hours=0)) :
+	# Set Timestamp to datetime
+	data['nordpool']['TimeStamp'] = pd.to_datetime(data['nordpool']['TimeStamp'])
 
-	# 	nordpool  = getSpotPrice(now=now, prev_data=data['nordpool'], test=test)
-	# 	plot_nordpool_data(nordpool)
-		
-	# 	last_down_load = datetime.datetime(year=now.year, month=now.month, day=now.day, hour=14)
-	# 	if nordpool.empty: #TODO Maybe also if nordpool == data['nordpool'] then no new download
-	# 		new_download = False
-	# 	else:
-	# 		new_download = True
-	# 	data['nordpool'] = nordpool
-	# 	data['last_down_load'] = last_down_load
-	# 	data['new_down_load'] = new_download
 		
 	# Current status from GARO	
-	connected, available = get_Garo_status(test=test)
+	connected, available = garo.get_Garo_status(test=test)
 	# Respons from webserver
 	response = cc.get_button_state()
 	if test:
@@ -139,7 +133,7 @@ while True:
 		###############################################################
 		else:
 			print("Update schedule!", end=" ")
-			data = cc.update_charge_schedule(data, response, connected)
+			data = cc.update_charge_schedule(data, response, now)
 
 		####################     CHARGING      ##########################
 		# Determine if the car should be charged or not	acording to		  #
@@ -162,7 +156,7 @@ while True:
 			if not data['schedule'].empty and \
 				response['charge_type'] == 'auto':
 				print("Update schedule!", end=" ")
-				data = cc.update_charge_schedule(data, response, connected)
+				data = cc.update_charge_schedule(data, response, now)
 
 
 		#################################################################
@@ -185,13 +179,7 @@ while True:
 			data['charge'] = charge
 
 
-		###################  IF SCHEDULE IS OUT OF DATE  ###################
-		# If the schedule is out of date, delete it												 #
-		#####################################################################
-		if not data['schedule'].empty:
-			if datetime.timedelta(hours=1) + data['schedule']['TimeStamp'].iloc[-1] < now:
-				schedule = pd.DataFrame()
-				data['schedule'] = schedule
+
 
 
 	################### WHEN CAR STOPPED CHARGING ###################
@@ -223,7 +211,7 @@ while True:
 		data['charge_type'] = 'auto'
 
 		# Update webstate
-		_  = cc.set_button_state({'charge_type':response['charge_type']})
+		_  = cc.set_button_state({'charge_type': 'auto'})
 	
 		data['schedule'] = schedule
 		data['charge'] = charge
@@ -234,25 +222,33 @@ while True:
 			schedule = pd.DataFrame()
 			data['schedule'] = schedule
 			data['charge'] = charge
+			# Update webstate
+			_  = cc.set_button_state({'charge_type': 'auto'})
 
 
 	###################   UPDATE CHARGE STATUS   ########################
 	#																																		#
 	#####################################################################
-	# Considering power constraints
+	# Considering power constraints 
 	if data['charge']:
-		#TODO How to handle if the status is auto, fast_smart or on and how it 
-		# should be influence the charging status and charging current.
-
-		data['charge'] = cc.power_constraints(response['charge_type'])
-		pass		
+		do_charge = cc.power_constraints(response['charge_type'], garo_status=connected)	
+	else:
+		do_charge = data['charge']
 
 	charging, connected, available = cc.changeChargeStatusGaro(charging=data['charging'], 
-																												charge=data['charge'], 
+																												charge=do_charge, 
 																												connected=connected, 
 																												available=available,
 																												test=test,)
 	data['charging'] = charging
+
+	###################  IF SCHEDULE IS OUT OF DATE  ###################
+	# If the schedule is out of date, delete it												 #
+	#####################################################################
+	if not data['schedule'].empty:
+		if datetime.timedelta(hours=1) + data['schedule']['TimeStamp'].iloc[-1] < now:
+			schedule = pd.DataFrame()
+			data['schedule'] = schedule
 
 	new_download = False   # After the first loop of new data it turns to old
 	data['new_down_load'] = new_download
@@ -265,7 +261,8 @@ while True:
 		data['fas_value'] = response['fas_value']
 		data['kwh_per_week'] = response['kwh_per_week']
 	_ = cc.set_button_state({'status':connected})
-	
+	 
+	#TODO make charge status go back to auto
 
 	with open('data/saved_data.pkl', 'wb') as f:
 			pickle.dump(data,f)

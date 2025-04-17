@@ -1,9 +1,9 @@
 import requests
 from CONFIG.config import url_garo
-
+import json
 import random
 
-def get_Garo_status(test=False):
+def get_Garo_status(test=False):  
 	"""
 	This function check if car is connected to GARO
 	Return: 
@@ -15,10 +15,11 @@ def get_Garo_status(test=False):
 	if test:
 		return 'CONNECTED', 'ALWAYS_OFF'
 
+	status_path = "data/garo_status.json"
+
 	try:
-		url = url_garo + '/servlet/rest/chargebox/status?_=1'
-		response = requests.get(url=url, timeout=30)
-		data = response.json()
+		with open(status_path, 'r') as f:
+			data = json.load(f)
 
 		print(f"From Garo: {data['connector']} and {data['mode']}", end=" ")
 		if data['connector'] == 'CHARGING_PAUSED':
@@ -28,6 +29,103 @@ def get_Garo_status(test=False):
 		print("Not able to contact wallbox!", end=" ")
 		return None, None
 	
+def update_Garo_state(verbose=False):
+
+	try:
+		url = f"{url_garo}/servlet/rest/chargebox/config"
+		response = requests.get(url=url, timeout=30)
+		config = response.json()
+		with open('data/garo_config.json', 'w') as f:
+			json.dump(config, f, indent=4)
+		if verbose:
+			print(json.dumps(config, indent=4))	
+
+	except Exception as e:
+		print(f'Not able to get config in GARO! {e}', end=" ")
+
+	try:
+		url = f"{url_garo}/servlet/rest/chargebox/meterinfo/EXTERNAL"
+		response = requests.get(url=url, timeout=30)
+		meterinfo = response.json()
+		with open('data/garo_meterinfo.json', 'w') as f:
+			json.dump(meterinfo, f, indent=4)
+		if verbose:
+			print(json.dumps(meterinfo, indent=4))	
+
+	except Exception as e:
+		print(f'Not able to get meterinfo in GARO! {e}', end=" ")
+
+	try:
+		url = f"{url_garo}/servlet/rest/chargebox/status?_=1"
+		response = requests.get(url=url, timeout=30)
+		status = response.json()
+		with open('data/garo_status.json', 'w') as f:
+			json.dump(status, f, indent=4)
+		if verbose:
+			print(json.dumps(status, indent=4))
+	except Exception as e:
+		print(f'Not able to get status in GARO! {e}', end=" ")
+
+def get_garo_state():
+
+	try:
+		with open('data/garo_config.json', 'r') as f:
+			config = json.load(f)
+	except Exception as e:
+		print(f'Not able to load config in GARO! {e}', end=" ")
+		config = None
+	try:
+		with open('data/garo_meterinfo.json', 'r') as f:
+			meterinfo = json.load(f)
+	except Exception as e:
+		print(f'Not able to load meterinfo in GARO! {e}', end=" ")
+		meterinfo = None
+	try:
+		with open('data/garo_status.json', 'r') as f:
+			status = json.load(f)
+	except Exception as e:
+		print(f'Not able to load status in GARO! {e}', end=" ")
+		status = None
+
+	return config, meterinfo, status
+
+def get_charge_status():
+	try:
+		with open('data/garo_status.json', 'r') as f:
+			data = json.load(f)
+			charge_status = data['mainCharger'].get('chargeStatus')
+			
+	except Exception as e:
+		print(f'Not able to load status in GARO! {e}', end=" ")
+		status = None
+
+	return charge_status	
+
+def get_current_power():
+	try:
+		with open('data/garo_status.json', 'r') as f:
+			data = json.load(f)
+			power = data['mainCharger'].get('currentChargingPower')
+
+	except Exception as e:
+		print(f'Not able to load status in GARO! {e}', end=" ")
+		power = None
+
+	return power	
+
+def get_accumulated_energy(): 
+
+	try:
+		with open('data/garo_status.json', 'r') as f:
+			data = json.load(f)
+			energy = data['mainCharger'].get('accSessionEnergy')
+
+	except Exception as e:
+		print(f'Not able to load status in GARO! {e}', end=" ")
+		energy = None
+
+	return energy	
+
 def get_current_consumtion(test=False):
 	"""
 	This function check the power consumtion
@@ -41,16 +139,12 @@ def get_current_consumtion(test=False):
 	if test:
 		return {'fas1': random.random()*10, 'fas2': random.random()*10, 'fas3': random.random()*10}	
 
-	meterinfo_url = url_garo + '/servlet/rest/chargebox/meterinfo/EXTERNAL'
+	meterinfo_path = "data/garo_meterinfo.json"
 
 	try:
-		response = requests.get(meterinfo_url)
-		# Check response
-		if response.status_code != 200:
-				raise Exception(f"Failed to get meter info: {response.status_code}, {response.text}")
+		with open(meterinfo_path, 'r') as f:
+			data = json.load(f)
 
-		# Parse JSON
-		data = response.json()
 			
 		phase1Current = data.get('phase1Current')
 		phase2Current = data.get('phase2Current')
@@ -67,8 +161,6 @@ def get_current_consumtion(test=False):
 		return {'fas1':phase1Current, 'fas2':phase2Current, 'fas3':phase3Current, 'readTime':readTime}
 	except Exception as e:
 		print(f'Not able to update status in GARO!', end=" ")
-
-
 
 
 def on_off_Garo(value):
@@ -107,6 +199,22 @@ def on_off_Garo(value):
 	except requests.exceptions.RequestException as e:
 		print(f"Error occurred: {e}")
 		return None
+
+
+def get_Garo_current_limit():
+	config_path = "data/garo_config.json"
+
+	try:
+		with open(config_path, 'r') as f:
+			config = json.load(f)
+
+		charge_current = config["reducedCurrentIntervals"][0].get("chargeLimit")
+		currentChargingCurrent = config["slaveList"][0].get("currentChargingCurrent")
+	except Exception as e:
+		print(f'Not able to get current limit in GARO! {e}', end=" ")
+		charge_current = 13
+
+	return charge_current, currentChargingCurrent
 
 
 def set_Garo_current(value):
@@ -151,7 +259,20 @@ def set_Garo_current(value):
 	else:
 		print(f"Failed to set current limit: {post_response.status_code}", end=" ")
 
+def get_charge_current(verbose=False):
 
+	status_path = "data/garo_status.json"
+	try:
+		with open(status_path, 'r') as f:
+			data = json.load(f)
+
+		charge_current = data['mainCharger'].get('currentChargingCurrent')
+		if verbose:
+			print(f"Current charging current: {charge_current}", end=" ")
+		return charge_current
+	except Exception as e:
+		print(f'Not able to get current in GARO! {e}', end=" ")
+		return None
 
 
 
@@ -161,6 +282,16 @@ if __name__ == '__main__':
 	#set_Garo_current(6)
 	#get_current_consumtion()
 	#on_off_Garo('2')
-	get_Garo_status()
+	# get_Garo_status()
+	# value = get_Garo_current_limit()
+	# print(value)
+	update_Garo_state()
+
+	# value = get_current_consumtion()
+	# print(value)
+	#value = get_charge_status()
+	value = get_accumulated_energy()
+	print(value)
+
 
   

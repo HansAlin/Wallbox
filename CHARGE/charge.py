@@ -11,7 +11,7 @@ import json
 
 from matplotlib.dates import DateFormatter
 
-from GARO.garo import on_off_Garo, get_Garo_status
+from GARO.garo import on_off_Garo, get_Garo_status, set_Garo_current, get_Garo_current_limit
 from CONFIG.config import low_temp_url, server_url, tz_region, router_url, low_price
 from SpotPrice.spotprice import getSpotPrice
 
@@ -35,6 +35,7 @@ def get_auto_charge_schedule(nordpool_data, now, fraction):
 		"""
 
 	# Get future ´data and history data
+
 	history_data = nordpool_data[nordpool_data['TimeStamp'] < now]
 	future_data = nordpool_data[nordpool_data['TimeStamp'] >= now]
 
@@ -90,10 +91,6 @@ def get_auto_charge_schedule(nordpool_data, now, fraction):
 	charge_schedule = charge_schedule.sort_values(by='TimeStamp')
 
 	print(f"Auto: {len(charge_schedule)} h", end=' ')
-
-	# Only consider values after 22:00 and before 06:00
-	charge_schedule = charge_schedule[charge_schedule['TimeStamp'].dt.hour >= 22]
-	charge_schedule = charge_schedule[charge_schedule['TimeStamp'].dt.hour < 6]
 
 	return charge_schedule, value_lim
 
@@ -327,7 +324,7 @@ def changeChargeStatusGaro(charging, charge, connected, available, test):
 
 	return charging, connected, available
 
-def power_constraints(charging_type='auto'):
+def  power_constraints(charging_type='auto', garo_status=None):
 	"""
 		This function checks if the current power consumtion is below the third highest value
 		in present month. If the power consumtion is below the third highest value with a value that 
@@ -339,15 +336,30 @@ def power_constraints(charging_type='auto'):
 		Returns:
 			True if the power consumtion is below the third highest value
 	"""
+	
+	return True
+	min_current = 6	#TODO implement such that values comes from GARO
+	max_current = 13 #TODO implement such that values comes from GARO
+	pressent_current, currentChargingCurrent = get_Garo_current_limit()
+
+	if charging_type != 'auto':
+		charge_current = max_current
+
+		if pressent_current != charge_current:
+			print(f"No power constraints, charge current: {charge_current:.2f} A", end=" ")
+			set_Garo_current(charge_current)
+
+		return True
+
 	log_data = get_log()
 	power_data = get_power_data()
+	
 
 	nr_phases = log_data['R Fas value'].values[0]
 	voltage = power_data['voltage']
-	current_power = power_data['power_current_mean']
+	current_power = power_data['power_current_mean'] # Including charging
 	third_highest_power = power_data['third_highest_power']
-	min_current = 6	#TODO implement such that values comes from GARO
-	max_current = 13 #TODO implement such that values comes from GARO
+
 
 	min_power = min_current * voltage * nr_phases
 
@@ -361,23 +373,30 @@ def power_constraints(charging_type='auto'):
 		current_power = current_power / 2
 		min_power = min_power / 2
 
-	if charging_type != 'auto':
-		charge_current = max_current
-		print(f"No power constraints, charge current: {charge_current:.2f} A", end=" ")
-		return True
+
 	
 	if (current_power + min_power) < third_highest_power:
 		# OK to charge
 		# How much to charge
+
+ 
+
 		charge_power = third_highest_power - current_power
+		charge_power = charge_power + current_charging_power
+		print(f"Charge power: {charge_power:.2f} kW", end=" ")
 		charge_current = charge_power / (voltage * nr_phases)
-		print(f"Power constraints OK, charge current: {charge_current:.2f} A", end=" ")
+
+		if pressent_current - 1 < charge_current < pressent_current + 1:
+			current = int(pressent_current)
+			print(f"Power constraints OK, charge current: {current} A", end=" ")
+		else:
+			set_Garo_current(int(charge_current))
 		return True
 	else:
 		# Not OK to charge
 		# Adjust the current value
 		charge_current = 0
-		print(f"Power constraints not OK, charge current: {charge_current:.2f} A", end=" ")
+		print(f"Power constraints not OK, charge current: {charge_current} A", end=" ")
 		return False
 		 
 
@@ -579,8 +598,6 @@ def next_datetime(current: datetime.datetime, hour: int, **kwargs):
         repl = repl + datetime.timedelta(days=1)
     return repl
 
-import pandas as pd
-
 def save_log(data, now, connected, available, response):
 	"""
 	This function saves the log data to a file
@@ -593,24 +610,16 @@ def save_log(data, now, connected, available, response):
 	"""
 	max_lines = 1000
 
-	if response == None:
-		response = {}
-		response['charge_type'] = None
-		response['set_time'] = None
-		response['fas_value'] = None
-		response['kwh_per_week'] = None
-		response['hours'] = None
-
 
 	data_dict = {
 	"Time": now,
 	"G Connected": connected,
 	"G Available": available,
-	"R Charge type": response['charge_type'],
-	"R Set time": response['set_time'],
-	"R Fas value": response['fas_value'],
-	"R kwh per week": response['kwh_per_week'],
-	"R Hours": response['hours'],
+	"R Charge type": response['charge_type'] if response != None else "None",
+	"R Set time": response['set_time'] if response != None else "None",
+	"R Fas value": response['fas_value'] if response != None else "None",
+	"R kwh per week": response['kwh_per_week'] if response != None else "None",
+	"R Hours": response['hours'] if response != None else "None",
 	"D New down load": data['new_down_load'],
 	"D Charge type": data['charge_type'],
 	"D Charge": data['charge'],
@@ -707,5 +716,6 @@ if __name__ == '__main__':
 	one_hour = datetime.timedelta(hours=1)
 	print("Time: ", now)
 	print("Previous hour: ", now - one_hour)
-
-		#power_constraints()
+	garo_status, _ = get_Garo_status()
+	resp = power_constraints(garo_status=garo_status)
+	print(f"Power constraints: {resp}", end=" ")

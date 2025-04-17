@@ -22,20 +22,39 @@ socketio = SocketIO(app)
 data = {}
 state = {}
 
+import json
+import pickle
+
 def read_json_file():
     global data
-
-    with open('data/energy_status.json', 'r') as file:
-        content = file.read().strip()
-        if content:  # Check if the file is not empty
-            data = json.loads(content)
-        else:
-            data = {}  # Set data to an empty dictionary if the file is empty
-
     global state
-    with open('data/saved_data.pkl', 'rb') as f:
-        file_content = f.read()
-        state = pickle.loads(file_content)
+
+    # Handle JSON file reading
+    try:
+        with open('data/energy_status.json', 'r') as file:
+            content = file.read().strip()
+            if content:  # Check if the file is not empty
+                data = json.loads(content)
+            else:
+                data = {}  # Set data to an empty dictionary if the file is empty
+    except FileNotFoundError:
+        print("Error: 'data/energy_status.json' file not found.")
+        data = {}  # Default to an empty dictionary
+    except json.JSONDecodeError as e:
+        print(f"Error decoding JSON: {e}")
+        data = {}  # Default to an empty dictionary
+
+    # Handle pickle file reading
+    try:
+        with open('data/saved_data.pkl', 'rb') as f:
+            file_content = f.read()
+            state = pickle.loads(file_content)
+    except FileNotFoundError:
+        print("Error: 'data/saved_data.pkl' file not found.")
+        state = {}  # Default to an empty dictionary
+    except pickle.UnpicklingError as e:
+        print(f"Error unpickling data: {e}")
+        state = {}  # Default to an empty dictionary
 
 def update_data_periodically():
     while True:

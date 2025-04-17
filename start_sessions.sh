@@ -1,23 +1,38 @@
 #!/bin/bash
 
-# Start tmux session for server
-tmux new-session -d -s server
-tmux send-keys -t server 'source garo/bin/activate' C-m
-tmux send-keys -t server 'python server.py' C-m
+# Move to the directory where the script is located
+cd $(dirname "$0")
 
-# Start tmux session for main
-tmux new-session -d -s main
-tmux send-keys -t main 'source garo/bin/activate' C-m
-tmux send-keys -t main 'python main.py' C-m
+# Log file
+LOGFILE=/home/seb/tets/Wallbox/start_sessions.log
 
-# Start tmux session for power
-tmux new-session -d -s power
-tmux send-keys -t power 'source garo/bin/activate' C-m
-tmux send-keys -t power 'python energy_main.py' C-m
+# Log the current environment
+echo "Starting script at $(date)" >> $LOGFILE
+echo "Current directory: $(pwd)" >> $LOGFILE
+echo "User: $(whoami)" >> $LOGFILE
+echo "Environment variables:" >> $LOGFILE
+env >> $LOGFILE
 
-# Start tmux session for power_display
-tmux new-session -d -s power_display
-tmux send-keys -t power_display 'source garo/bin/activate' C-m
-tmux send-keys -t power_display 'python power_display.py' C-m
+# Function to start a tmux session if it doesn't already exist
+start_tmux_session() {
+  session_name=$1
+  command1=$2
+  command2=$3
 
-echo "All tmux sessions started."
+  if ! tmux has-session -t $session_name 2>/dev/null; then
+    tmux new-session -d -s $session_name
+    tmux send-keys -t $session_name "$command1" C-m
+    tmux send-keys -t $session_name "$command2" C-m
+    echo "Started tmux session: $session_name" >> $LOGFILE
+  else
+    echo "Tmux session $session_name already exists." >> $LOGFILE
+  fi
+}
+
+# Start tmux sessions
+start_tmux_session "server" "source /home/seb/tets/Wallbox/garo/bin/activate" "python /home/seb/tets/Wallbox/server.py"
+start_tmux_session "main" "source /home/seb/tets/Wallbox/garo/bin/activate" "python /home/seb/tets/Wallbox/main.py"
+start_tmux_session "power" "source /home/seb/tets/Wallbox/garo/bin/activate" "python /home/seb/tets/Wallbox/energy_main.py"
+start_tmux_session "power_display" "source /home/seb/tets/Wallbox/garo/bin/activate" "python /home/seb/tets/Wallbox/energy_display.py"
+
+echo "All tmux sessions checked and started if not already running." >> $LOGFILE

@@ -133,7 +133,7 @@ class Energy:
 
 
   def update(self, test):
-    if test:
+    if test: 
        print("Test mode") 
     now, utc_off = get_now()
     current = get_current_consumtion(test)

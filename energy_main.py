@@ -2,6 +2,8 @@ import sys
 import time
 import os
 import ENERGY.energy_cal as ec
+import CONFIG.config as conf
+import GARO.garo as garo
 
 test=False
 if os.getenv('PYTHONDEBUG', '0') == '1':
@@ -18,7 +20,7 @@ else:
 
 print('Starting energy calculation')
 energy_cal = ec.Energy()
-sleep_time = energy_cal.sleep_time
+sleep_time = conf.sleep_time
 
 """  WARNING: The script pygmentize is installed in '/home/hans/.local/bin' which is not on PATH.
   Consider adding this directory to PATH or, if you prefer to suppress this warning, use --no-warn-script-location."""
@@ -26,6 +28,7 @@ sleep_time = energy_cal.sleep_time
 while(True):
 
   try:
+    garo.update_Garo_state()
     _ = energy_cal.update(test=test)
 
     print()

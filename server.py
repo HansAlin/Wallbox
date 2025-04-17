@@ -8,6 +8,8 @@ import time
 import threading
 import matplotlib.pyplot as plt
 
+import GARO.garo as garo
+
 import io
 import pandas as pd
 
@@ -16,14 +18,16 @@ app = Flask(__name__)
 # Define default settings
 DEFAULT_SETTINGS = {
     'auto': 1,
-    'full': 0,
     'fast_smart': 0,
     'on': 0,
     'hours': 5,
     'set_time': 12,
     'fas_value': 1,
     'kwh_per_week': 50,
-    'status': 'Hej'
+    'status': 'Not updated',
+    'charging_power': 0,
+    'energy': 0,
+
 }
 
 SETTINGS_FILE = 'web_data.txt'
@@ -50,9 +54,22 @@ def read_pkl_file():
     except (IOError, pickle.UnpicklingError) as e:
         print(f"Error reading pickle file: {e}")
 
+def read_garo_values():
+
+    global settings
+
+    charging_power = garo.get_current_power()
+    energy = garo.get_accumulated_energy()
+
+    settings['charging_power'] = charging_power
+    settings['energy'] = energy
+
+
+
 def update_periodically():
     while True:
         read_pkl_file()
+        read_garo_values()
         time.sleep(UPDATE_INTERVAL)
 
 def load_settings():
