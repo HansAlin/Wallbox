@@ -18,53 +18,37 @@ import cairosvg
 app = Flask(__name__)
 socketio = SocketIO(app)
 
-# Global variable to store data
-data = {}
-state = {}
 
-import json
-import pickle
+class DataManager:
+    def __init__(self):
+        self.data = {}
+        self.state = {}
 
-def read_json_file():
-    global data
-    global state
+    def read_json_file(self):
+        try:
+            with open('data/energy_status.json', 'r') as file:
+                content = file.read().strip()
+                self.data = json.loads(content) if content else {}
+        except (FileNotFoundError, json.JSONDecodeError):
+            self.data = {}
 
-    # Handle JSON file reading
-    try:
-        with open('data/energy_status.json', 'r') as file:
-            content = file.read().strip()
-            if content:  # Check if the file is not empty
-                data = json.loads(content)
-            else:
-                data = {}  # Set data to an empty dictionary if the file is empty
-    except FileNotFoundError:
-        print("Error: 'data/energy_status.json' file not found.")
-        data = {}  # Default to an empty dictionary
-    except json.JSONDecodeError as e:
-        print(f"Error decoding JSON: {e}")
-        data = {}  # Default to an empty dictionary
+        try:
+            with open('data/saved_data.pkl', 'rb') as f:
+                file_content = f.read()
+                self.state = pickle.loads(file_content) if file_content else {}
+        except (FileNotFoundError, pickle.UnpicklingError, EOFError):
+            self.state = {}
 
-    # Handle pickle file reading
-    try:
-        with open('data/saved_data.pkl', 'rb') as f:
-            file_content = f.read()
-            state = pickle.loads(file_content)
-    except FileNotFoundError:
-        print("Error: 'data/saved_data.pkl' file not found.")
-        state = {}  # Default to an empty dictionary
-    except pickle.UnpicklingError as e:
-        print(f"Error unpickling data: {e}")
-        state = {}  # Default to an empty dictionary
 
 def update_data_periodically():
     while True:
-        read_json_file()
-        time.sleep(20)  # Wait for 1 minute
+        data_manager.read_json_file()
+        time.sleep(20)
 
 @app.route('/')
 def index():
-    power_current_mean = int(data.get('power_current_mean', 0))
-    third_highest_power = int(data.get('third_highest_power', 0))
+    power_current_mean = int(data_manager.data.get('power_current_mean', 0))
+    third_highest_power = int(data_manager.data.get('third_highest_power', 0))
     return render_template_string('''
         <!DOCTYPE html>
         <html lang="en">
@@ -117,12 +101,12 @@ def index():
 @app.route('/plot.png')
 def plot_png():
     # Unzip the data into datetime and power lists
-    datetime_list, power_list = zip(*data.get('power_current_list', []))
+    datetime_list, power_list = zip(*data_manager.data.get('power_current_list', []))
     
     # Convert datetime strings to datetime objects
     datetime_list = [datetime.strptime(datetime_str, '%Y-%m-%d %H:%M:%S.%f') for datetime_str in datetime_list]
 
-    mean_power = data.get('power_current_mean', 0)
+    mean_power = data_manager.data.get('power_current_mean', 0)
 
     # Two plots in one figure
     fig, axs = plt.subplots(2, 1, figsize=(16, 8))  # Increase figure size
@@ -133,7 +117,7 @@ def plot_png():
     axs[0].set_xlabel('Time', fontsize=20)  # Increase x-axis label font size
     axs[0].set_ylabel('Power', fontsize=20)  # Increase y-axis label font size
     # Horizontal lines for the third highest power
-    third_highest_power = data.get('third_highest_power', 0)
+    third_highest_power = data_manager.data.get('third_highest_power', 0)
     axs[0].axhline(third_highest_power, color='red', linestyle='--', label='Third Highest Power')
     axs[0].axhline(mean_power, color='green', linestyle='--', label='Mean Power')
     axs[0].legend()
@@ -141,8 +125,8 @@ def plot_png():
 
 
     # Plot month list is not empty
-    if data.get('power_month_list'):
-        month_list, month_power_list = zip(*data.get('power_month_list', []))
+    if data_manager.data.get('power_month_list'):
+        month_list, month_power_list = zip(*data_manager.data.get('power_month_list', []))
         month_list = pd.to_datetime(month_list, format='ISO8601').tolist()
         #month_list = [datetime.strptime(month_str, '%Y-%m-%d %H:%M:%S.%f') for month_str in month_list]
         axs[1].bar(month_list, month_power_list, label='Month', width=0.03)
@@ -177,13 +161,6 @@ def get_local_ip():
     return local_ip
 
 if __name__ == '__main__':
-    local_ip = get_local_ip()
-    print(f"Server is running at http://{local_ip}:5001/")
-    print("Ensure your firewall allows incoming connections on port 5000.")
-    print("If you are using WSL, use your Windows host IP address to access the server from other devices.")
-    # Start the background thread to update data periodically
+    data_manager = DataManager()
     threading.Thread(target=update_data_periodically, daemon=True).start()
-    # Read the JSON file initially
-    read_json_file()
-    # Run the Flask application
     app.run(host='0.0.0.0', port=5001, debug=True)
