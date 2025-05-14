@@ -11,9 +11,7 @@ import time
 from datetime import datetime
 import pandas as pd
 import pickle
-import pygal
-from pygal.style import LightStyle
-import cairosvg 
+
 
 app = Flask(__name__)
 socketio = SocketIO(app)

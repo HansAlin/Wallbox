@@ -222,7 +222,7 @@ class Energy:
 
     return status
 
-  def get_power(self, current):
+  def  get_power(self, current):
     """
     This function calculates the power consumption in W
 

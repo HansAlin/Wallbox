@@ -20,3 +20,4 @@ private_config.txt
 LEAF/
 Nordpool/
 .gitignore
+**/prodeployer_config.txt
