@@ -11,7 +11,7 @@ import json
 
 from matplotlib.dates import DateFormatter
 
-from GARO.garo import on_off_Garo, get_Garo_status, set_Garo_current, get_Garo_current_limit
+from GARO.garo import on_off_Garo, get_Garo_status, set_Garo_current, get_Garo_current_limit, get_status, update_Garo_state
 from CONFIG.config import low_temp_url, server_url, tz_region, router_url, low_price
 from SpotPrice.spotprice import getSpotPrice
 
@@ -109,6 +109,11 @@ def get_fast_smart_schedule(nordpool_data, now, hour_to_charged, charge_limit, s
 			schedule
 			value_lim: the value of the last value in the average of the lowest fraction of the history
 	"""
+	#TODO Start charge in order to get the correct SOC value from car
+	# on_off_Garo('1')
+	# time.sleep(10)
+	# soc = get_status('chargeStatus')
+	# time.sleep(10)
 
 	df_sub = nordpool_data[nordpool_data['TimeStamp'] >= datetime.datetime(year=now.year, month=now.month, day=now.day, hour=now.hour)] 
 
@@ -337,7 +342,7 @@ def  power_constraints(charging_type='auto', garo_status=None):
 			True if the power consumtion is below the third highest value
 	"""
 	
-	return True
+	
 	min_current = 6	#TODO implement such that values comes from GARO
 	max_current = 13 #TODO implement such that values comes from GARO
 	pressent_current, currentChargingCurrent = get_Garo_current_limit()
@@ -359,6 +364,8 @@ def  power_constraints(charging_type='auto', garo_status=None):
 	voltage = power_data['voltage']
 	current_power = power_data['power_current_mean'] # Including charging
 	third_highest_power = power_data['third_highest_power']
+	current_charging_power = get_status('currentChargingPower')
+	house_power = current_power - current_charging_power
 
 
 	min_power = min_current * voltage * nr_phases
@@ -373,19 +380,14 @@ def  power_constraints(charging_type='auto', garo_status=None):
 		current_power = current_power / 2
 		min_power = min_power / 2
 
-
+	possible_power = third_highest_power - house_power
 	
-	if (current_power + min_power) < third_highest_power:
-		# OK to charge
-		# How much to charge
+	if (house_power < third_highest_power and
+		house_power > min_power):
 
- 
-
-		charge_power = third_highest_power - current_power
-		charge_power = charge_power + current_charging_power
-		print(f"Charge power: {charge_power:.2f} kW", end=" ")
-		charge_current = charge_power / (voltage * nr_phases)
-
+		print(f"Charge power: {possible_power:.2f} kW", end=" ")
+		charge_current = int(possible_power / (voltage * nr_phases))
+		
 		if pressent_current - 1 < charge_current < pressent_current + 1:
 			current = int(pressent_current)
 			print(f"Power constraints OK, charge current: {current} A", end=" ")
@@ -565,6 +567,7 @@ def create_data_file():
 	data['charge'] = False
 	data['charging'] = True
 	data['connected'] = 0
+	data['available'] = 0
 	data['hours'] = 0
 	data['set_time'] = 0
 	data['fas_value'] = 1
@@ -716,6 +719,6 @@ if __name__ == '__main__':
 	one_hour = datetime.timedelta(hours=1)
 	print("Time: ", now)
 	print("Previous hour: ", now - one_hour)
-	garo_status, _ = get_Garo_status()
-	resp = power_constraints(garo_status=garo_status)
+	update_Garo_state()
+	resp = power_constraints()
 	print(f"Power constraints: {resp}", end=" ")

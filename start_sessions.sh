@@ -24,5 +24,11 @@ check_and_run() {
 }
 
 # Check and run the Python scripts in their respective sessions
-check_and_run "energy_main" "python /home/pi/Projects/Wallbox/energy_main.py"
-check_and_run "energy_display" "python /home/pi/Projects/Wallbox/energy_display.py"
+check_and_run "power" "python /home/pi/Projects/Wallbox/energy_main.py"
+check_and_run "power_display" "python /home/pi/Projects/Wallbox/energy_display.py"
+
+check_and_run "server" "python /home/pi/Projects/Wallbox/server.py"
+check_and_run "main" "python /home/pi/Projects/Wallbox/main.py"
+
+# Then keep the script running so systemd stays happy:
+tail -f /dev/null

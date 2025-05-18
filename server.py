@@ -27,6 +27,7 @@ DEFAULT_SETTINGS = {
     'status': 'Not updated',
     'charging_power': 0,
     'energy': 0,
+    'charge_status': 0
 
 }
 
@@ -63,8 +64,8 @@ def read_garo_values():
 
     settings['charging_power'] = charging_power
     settings['energy'] = energy
-
-
+    settings['charge_status'] = garo.get_status('chargeStatus')
+    #print(f"Updated settings: {settings}")
 
 def update_periodically():
     while True:
@@ -93,6 +94,9 @@ settings = load_settings()
 
 @app.route('/')
 def index():
+    global settings
+    print("Index route triggered")  # Debug print
+    print(f"Settings passed to template: {settings}")
     return render_template('index.html', title='Charger', image_filename='image.png', **settings)
 
 @app.route('/<deviceName>/<action>')
@@ -104,7 +108,7 @@ def action(deviceName, action):
         settings[deviceName] = 0
 
     update_file(settings)
-    return render_template('index.html', **settings)
+    return redirect('/')
 
 @app.route('/get_status', methods=['GET'])
 def get_status():

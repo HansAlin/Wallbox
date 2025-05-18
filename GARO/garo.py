@@ -66,6 +66,40 @@ def update_Garo_state(verbose=False):
 	except Exception as e:
 		print(f'Not able to get status in GARO! {e}', end=" ")
 
+# def get_Garo_status(state=None, verbose=False):
+# 	"""
+# 	This function returns the status of the GARO charger
+# 	"""
+# 	try:
+# 		with open('data/garo_status.json', 'r') as f:
+# 			data = json.load(f)
+# 		if verbose:
+# 			print(data)
+# 		if state is not None:
+# 			status = data.get(state)
+# 			if verbose:
+# 				print(f"Status of state {state}: {status}", end=" ")
+# 	except Exception as e:
+# 		print(f'Not able to load status in GARO! {e}', end=" ")
+# 		status = None
+
+def get_meterinfo(state, verbose=False):
+	"""
+	This function returns the status of the GARO charger
+	"""
+	try:
+		with open('data/garo_meterinfo.json', 'r') as f:
+			data = json.load(f)
+		if verbose:
+			print(data)
+		if state is not None:
+			status = data.get(state)
+			if verbose:
+				print(f"Status of state {state}: {status}", end=" ")
+	except Exception as e:
+		print(f'Not able to load meterinfo in GARO! {e}', end=" ")
+		data = None		
+
 def get_garo_state():
 
 	try:
@@ -274,6 +308,23 @@ def get_charge_current(verbose=False):
 		print(f'Not able to get current in GARO! {e}', end=" ")
 		return None
 
+def get_status(state, verbose=False):
+	"""
+	This function returns the status of the GARO charger
+	"""
+	try:
+		with open('data/garo_status.json', 'r') as f:
+			data = json.load(f)
+		status = data.get(state)
+		if verbose:
+			print(data)
+			print(f"Status of state {state}: {status}", end=" ")
+	except Exception as e:
+		print(f'Not able to load status in GARO! {e}', end=" ")
+		status = None
+
+	return status
+
 
 
 if __name__ == '__main__':
@@ -287,11 +338,14 @@ if __name__ == '__main__':
 	# print(value)
 	update_Garo_state()
 
-	# value = get_current_consumtion()
+	# # value = get_current_consumtion()
+	# # print(value)
+	# #value = get_charge_status()
+	# value = get_accumulated_energy()
 	# print(value)
-	#value = get_charge_status()
-	value = get_accumulated_energy()
-	print(value)
+	get_status('nrOfPhases', verbose=True)
+
+
 
 
   

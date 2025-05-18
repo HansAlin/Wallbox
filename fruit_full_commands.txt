@@ -1,0 +1,36 @@
+| Command                           | Description                     |
+| --------------------------------- | ------------------------------- |
+| `tmux`                            | Start a new tmux session        |
+| `tmux new -s <name>`              | Start a new session with a name |
+| `tmux attach` or `tmux a`         | Attach to the last session      |
+| `tmux attach -t <name>`           | Attach to a named session       |
+| `tmux list-sessions` or `tmux ls` | List all sessions               |
+| `tmux kill-session -t <name>`     | Kill a named session            |
+| `tmux kill-server`                | Kill all tmux sessions          |
+
+| Key        | Description           |
+| ---------- | --------------------- |
+| `Ctrl+b c` | Create new window     |
+| `Ctrl+b n` | Next window           |
+| `Ctrl+b p` | Previous window       |
+| `Ctrl+b w` | List windows          |
+| `Ctrl+b ,` | Rename current window |
+| `Ctrl+b &` | Kill current window   |
+
+| Key              | Description                   |
+| ---------------- | ----------------------------- |
+| `Ctrl+b %`       | Split pane vertically         |
+| `Ctrl+b "`       | Split pane horizontally       |
+| `Ctrl+b o`       | Switch to next pane           |
+| `Ctrl+b ;`       | Toggle between last two panes |
+| `Ctrl+b x`       | Close current pane            |
+| `Ctrl+b q`       | Show pane numbers             |
+| `Ctrl+b <arrow>` | Move between panes            |
+
+| Key                      | Description       |
+| ------------------------ | ----------------- |
+| `Ctrl+b :resize-pane -L` | Resize pane left  |
+| `Ctrl+b :resize-pane -R` | Resize pane right |
+| `Ctrl+b :resize-pane -U` | Resize pane up    |
+| `Ctrl+b :resize-pane -D` | Resize pane down  |
+

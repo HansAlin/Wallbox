@@ -1,0 +1,63 @@
+summary_text = """
+Summary: Run your bash script on Raspberry Pi reboot with systemd user service
+
+1. Verify your script filename and location
+- Use `ls` to check the exact filename and path.
+- Make sure the script you want to run (e.g., `start_sessions.sh`) exists in /home/pi/Projects/Wallbox/.
+
+2. Make the script executable
+chmod +x /home/pi/Projects/Wallbox/start_sessions.sh
+- Gives the file permission to be run as a program.
+- Without this, systemd can’t execute the script.
+
+3. Create a systemd user service folder
+mkdir -p ~/.config/systemd/user
+- This folder is where user-level systemd services live.
+- It keeps your service isolated to your user (pi), no root required.
+
+4. Create and edit the service file
+nano ~/.config/systemd/user/energy_scripts.service
+Paste this inside, adjusting the script path:
+
+[Unit]
+Description=Start Energy Scripts in tmux
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/pi/Projects/Wallbox
+ExecStart=/home/pi/Projects/Wallbox/start_sessions.sh
+Restart=on-failure
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+Environment=VIRTUAL_ENV=/home/pi/Projects/Wallbox/env
+Environment=HOME=/home/pi
+
+[Install]
+WantedBy=default.target
+
+- Defines what and how systemd should run your script as your user.
+- ExecStart uses absolute paths to avoid confusion.
+- Sets PATH so commands like python and tmux work inside the script.
+If want to run the script continuously add line in .sh file
+# Then keep the script running so systemd stays happy:
+tail -f /dev/null
+
+5. Reload systemd and enable the service
+systemctl --user daemon-reload
+systemctl --user enable energy_scripts.service
+- daemon-reload tells systemd to read the new service file.
+- enable makes the service start automatically at user login (and boot if lingering enabled).
+
+6. Start the service now and check status
+systemctl --user start energy_scripts.service
+systemctl --user status energy_scripts.service
+- Starts the service immediately.
+- status helps confirm it’s running or shows errors if any.
+
+7. Enable lingering to start the service on boot without login
+sudo loginctl enable-linger pi
+- Keeps your user’s systemd services running even if you’re not logged in.
+- Makes sure your script runs automatically after reboot.
+
+8. Reboot and check if the script runs
+sudo reboot

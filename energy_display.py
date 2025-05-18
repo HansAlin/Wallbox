@@ -98,6 +98,12 @@ def index():
 
 @app.route('/plot.png')
 def plot_png():
+
+    # Fontsize
+    title_fontsize = 24
+    label_fontsize = 20
+
+
     # Unzip the data into datetime and power lists
     datetime_list, power_list = zip(*data_manager.data.get('power_current_list', []))
     
@@ -107,13 +113,13 @@ def plot_png():
     mean_power = data_manager.data.get('power_current_mean', 0)
 
     # Two plots in one figure
-    fig, axs = plt.subplots(2, 1, figsize=(16, 8))  # Increase figure size
+    fig, axs = plt.subplots(3, 1, figsize=(16, 8))  # Increase figure size
     axs = axs.flatten()
 
     axs[0].plot(datetime_list, power_list, label='Current power')
-    axs[0].set_title('Hour', fontsize=24)  # Increase title font size
-    axs[0].set_xlabel('Time', fontsize=20)  # Increase x-axis label font size
-    axs[0].set_ylabel('Power', fontsize=20)  # Increase y-axis label font size
+    axs[0].set_title('Hour', fontsize=title_fontsize)  # Increase title font size
+    axs[0].set_xlabel('Time', fontsize=label_fontsize)  # Increase x-axis label font size
+    axs[0].set_ylabel('Power', fontsize=label_fontsize)  # Increase y-axis label font size
     # Horizontal lines for the third highest power
     third_highest_power = data_manager.data.get('third_highest_power', 0)
     axs[0].axhline(third_highest_power, color='red', linestyle='--', label='Third Highest Power')
@@ -130,11 +136,22 @@ def plot_png():
         axs[1].bar(month_list, month_power_list, label='Month', width=0.03)
         # Horizontal lines for the third highest power
         axs[1].axhline(third_highest_power, color='red', linestyle='--', label='Third Highest Power')
-        axs[1].set_title('Power Month List', fontsize=24)
-        axs[1].set_xlabel('Time', fontsize=20)
-        axs[1].set_ylabel('Power', fontsize=20)
+        axs[1].set_title('Power Month List', fontsize=title_fontsize)
+        axs[1].set_xlabel('Time', fontsize=label_fontsize)
+        axs[1].set_ylabel('Power', fontsize=label_fontsize)
         axs[1].legend()
 
+    # Plot cost list
+        
+    datetime_list, cost_list = zip(*data_manager.data.get('cost_hour_list', []))
+    datetime_list = [datetime.strptime(datetime_str, '%Y-%m-%d %H:%M:%S.%f') for datetime_str in datetime_list]
+    axs[2].plot(datetime_list, cost_list, label='Cost')
+    axs[2].set_title('Cost', fontsize=title_fontsize)    
+    axs[2].set_xlabel('Time', fontsize=label_fontsize)
+    axs[2].set_ylabel('Cost', fontsize=label_fontsize)
+    axs[2].legend()
+    axs[2].grid(True)
+   
     # Thight layout
     plt.tight_layout()
 
