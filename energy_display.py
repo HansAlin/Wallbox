@@ -12,6 +12,10 @@ from datetime import datetime
 import pandas as pd
 import pickle
 
+import os
+
+
+
 
 app = Flask(__name__)
 socketio = SocketIO(app)
@@ -22,20 +26,34 @@ class DataManager:
         self.data = {}
         self.state = {}
 
-    def read_json_file(self):
-        try:
-            with open('data/energy_status.json', 'r') as file:
-                content = file.read().strip()
-                self.data = json.loads(content) if content else {}
-        except (FileNotFoundError, json.JSONDecodeError):
+    def read_json_file(self, retries=3, delay=2):
+        json_path = 'data/energy_status.json'
+        for attempt in range(retries):
+            try:
+                if os.path.getsize(json_path) < 10:  # Arbitrary small threshold
+                    raise ValueError("File too small to be valid JSON")
+
+                with open(json_path, 'r') as file:
+                    content = file.read().strip()
+                    self.data = json.loads(content) if content else {}
+                    break  # success
+            except (FileNotFoundError, json.JSONDecodeError, ValueError) as e:
+                print(f"JSON read attempt {attempt + 1} failed: {e}")
+                self.data = {}
+                time.sleep(delay)
+        else:
+            print("Failed to load energy_status.json after multiple attempts")
             self.data = {}
 
+        # Handle pickle file (less likely to fail, but still good to wrap)
         try:
             with open('data/saved_data.pkl', 'rb') as f:
                 file_content = f.read()
                 self.state = pickle.loads(file_content) if file_content else {}
-        except (FileNotFoundError, pickle.UnpicklingError, EOFError):
+        except (FileNotFoundError, pickle.UnpicklingError, EOFError) as e:
+            print(f"Pickle load failed: {e}")
             self.state = {}
+
 
 
 def update_data_periodically():
@@ -113,7 +131,7 @@ def plot_png():
     mean_power = data_manager.data.get('power_current_mean', 0)
 
     # Two plots in one figure
-    fig, axs = plt.subplots(3, 1, figsize=(16, 8))  # Increase figure size
+    fig, axs = plt.subplots(4, 1, figsize=(16, 8))  # Increase figure size
     axs = axs.flatten()
 
     axs[0].plot(datetime_list, power_list, label='Current power')
@@ -151,6 +169,19 @@ def plot_png():
     axs[2].set_ylabel('Cost', fontsize=label_fontsize)
     axs[2].legend()
     axs[2].grid(True)
+
+    # Plot month cost list if not empty
+    if data_manager.data.get('cost_month_list'):
+        month_cost_list, month_cost_power_list = zip(*data_manager.data.get('cost_month_list', []))
+        month_cost_list = pd.to_datetime(month_cost_list, format='ISO8601').tolist()
+        #month_cost_list = [datetime.strptime(month_str, '%Y-%m-%d %H:%M:%S.%f') for month_str in month_cost_list]
+        axs[3].bar(month_cost_list, month_cost_power_list, label='Month', width=0.03)
+        axs[3].legend()
+        axs[3].set_title('Cost Month List', fontsize=title_fontsize)
+        axs[3].set_xlabel('Time', fontsize=label_fontsize)
+        axs[3].set_ylabel('Cost', fontsize=label_fontsize)
+        axs[3].grid(True)
+    # Set x-axis date format
    
     # Thight layout
     plt.tight_layout()

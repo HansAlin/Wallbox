@@ -19,7 +19,7 @@ else:
 
 
 print('Starting energy calculation')
-energy_cal = ec.Energy()
+energy_cal = ec.Energy('weighted')
 sleep_time = conf.sleep_time
 
 """  WARNING: The script pygmentize is installed in '/home/hans/.local/bin' which is not on PATH.

@@ -13,6 +13,16 @@
         <h2>Charge status: {{ status }},  Charge power {{charging_power}} W,  Accumulated energy {{energy}} kWh
             SOC: {{charge_status}} %
         </h2>
+        <!-- <h2>    
+            Battery size: 
+            <input type="number" id="battery_size" name="battery_size" value="{{ battery_size }}" class="input-number">
+            <button type="submit" class="button">Set Battery Size</button>
+            Number of phases:
+            <select name="fas_value" id="fas_value" class="input-number">
+                <option value="3" {% if fas_value == 3 %}selected{% endif %}>3 Phases</option>
+                <option value="1" {% if fas_value == 1 %}selected{% endif %}>1 Phase</option>
+        </h2> -->
+
     </header>
 
     <section class="control-section">

@@ -7,6 +7,12 @@ from bs4 import BeautifulSoup
 import matplotlib.pyplot as plt	
 import time
 import json
+import os
+import portalocker
+import sys
+
+# Add the parent folder to sys.path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 from matplotlib.dates import DateFormatter
@@ -341,13 +347,19 @@ def  power_constraints(charging_type='auto', garo_status=None):
 		Returns:
 			True if the power consumtion is below the third highest value
 	"""
+	log_data = get_log()
+	power_data = get_power_data()
 	
+	nr_phases = log_data['R Fas value'].values[0]
 	
 	min_current = 6	#TODO implement such that values comes from GARO
-	max_current = 13 #TODO implement such that values comes from GARO
+	if nr_phases == 1:
+		max_current = 13 #TODO implement such that values comes from GARO
+	elif nr_phases == 3:
+		max_current = 6 #TODO implement such that values comes from GARO
 	pressent_current, currentChargingCurrent = get_Garo_current_limit()
 
-	if charging_type != 'auto':
+	if charging_type == 'now':
 		charge_current = max_current
 
 		if pressent_current != charge_current:
@@ -356,19 +368,22 @@ def  power_constraints(charging_type='auto', garo_status=None):
 
 		return True
 
-	log_data = get_log()
-	power_data = get_power_data()
-	
 
-	nr_phases = log_data['R Fas value'].values[0]
 	voltage = power_data['voltage']
 	current_power = power_data['power_current_mean'] # Including charging
 	third_highest_power = power_data['third_highest_power']
 	current_charging_power = get_status('currentChargingPower')
 	house_power = current_power - current_charging_power
+	possible_power = third_highest_power - house_power
 
 
 	min_power = min_current * voltage * nr_phases
+	print(f"Current power: {current_power:.2f} kW")
+	print(f"Current charging power: {current_charging_power:.2f} kW")
+	print(f"House power: {house_power:.2f} kW")
+	print(f"Possible power: {possible_power:.2f} kW")
+	print(f"Third highest power: {third_highest_power:.2f} kW")
+	print(f"Min power: {min_power:.2f} kW")
 
 	now, _ = get_now()
 	hour = now.hour
@@ -383,7 +398,7 @@ def  power_constraints(charging_type='auto', garo_status=None):
 	possible_power = third_highest_power - house_power
 	
 	if (house_power < third_highest_power and
-		house_power > min_power):
+		possible_power > min_power):
 
 		print(f"Charge power: {possible_power:.2f} kW", end=" ")
 		charge_current = int(possible_power / (voltage * nr_phases))
@@ -400,12 +415,25 @@ def  power_constraints(charging_type='auto', garo_status=None):
 		charge_current = 0
 		print(f"Power constraints not OK, charge current: {charge_current} A", end=" ")
 		return False
-		 
 
-def get_power_data():
-	with open('data/energy_status.json', 'r') as file:
-		data = json.load(file)
-		return data
+def get_power_data(retries=3, delay=2):
+    path = 'data/energy_status.json'
+    for attempt in range(retries):
+        try:
+            if os.path.getsize(path) < 10:
+                raise ValueError("File too small to be valid JSON")
+
+            with open(path, 'r') as file:
+                portalocker.lock(file, portalocker.LOCK_SH)
+                data = json.load(file)
+                portalocker.unlock(file)
+                return data
+        except (json.JSONDecodeError, ValueError, OSError) as e:
+            print(f"Attempt {attempt + 1} failed: {e}")
+            time.sleep(delay)
+
+    raise RuntimeError("Failed to read power data after multiple attempts")
+
 
 
 def get_log():
@@ -532,6 +560,7 @@ def lowTemp():
 		If the temperture is below -18 it returns True
 		If the temperture is above -18 or the device is not available it returns False
 	"""
+
 	temp = get_temp()
 
 	if temp == None:
@@ -717,8 +746,10 @@ def update_charge_schedule(data, response, now):
 if __name__ == '__main__':
 	now, _ = get_now()
 	one_hour = datetime.timedelta(hours=1)
-	print("Time: ", now)
-	print("Previous hour: ", now - one_hour)
-	update_Garo_state()
+	# print("Time: ", now)
+	# print("Previous hour: ", now - one_hour)
+	# update_Garo_state()
 	resp = power_constraints()
 	print(f"Power constraints: {resp}", end=" ")
+	# data = get_power_data()
+	# print(f"Power data: {data}", end=" ")

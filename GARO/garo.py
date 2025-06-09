@@ -1,7 +1,16 @@
+
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import requests
 from CONFIG.config import url_garo
 import json
 import random
+
+
+
+
 
 def get_Garo_status(test=False):  
 	"""
@@ -312,6 +321,7 @@ def get_status(state, verbose=False):
 	"""
 	This function returns the status of the GARO charger
 	"""
+
 	try:
 		with open('data/garo_status.json', 'r') as f:
 			data = json.load(f)
@@ -343,8 +353,10 @@ if __name__ == '__main__':
 	# #value = get_charge_status()
 	# value = get_accumulated_energy()
 	# print(value)
-	get_status('nrOfPhases', verbose=True)
-
+	status = get_status('nrOfPhases', verbose=False)
+	print(status)
+	status = get_status('currentChargingPower', verbose=False)
+	print(status)
 
 
 

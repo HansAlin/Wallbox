@@ -1,5 +1,4 @@
 from CONFIG.config import region, currency, days_of_histroical_data
-#from CHARGE.charge import get_now
 import requests
 import datetime
 import pickle
@@ -296,14 +295,37 @@ def get_current_price(now):
 		float: The current price
 	"""
 
-	# Nordpool data
-	log_nord_pool_data = get_nordpool_data(now)
-	# Get the current price  
-	mask = (log_nord_pool_data['TimeStamp'] > (now - datetime.timedelta(hours=1))) & (log_nord_pool_data['TimeStamp'] < now)
-	time_row = log_nord_pool_data[mask]
-	current_value = time_row['value']
 
-	return current_value
+
+
+
+	# Nordpool dataenergy
+	if isinstance(now, str) or isinstance(now, datetime.datetime):
+		# Make sure that now is a pandas datetime object
+		if isinstance(now, str):
+			now = pd.to_datetime(now)
+		log_nord_pool_data = get_nordpool_data(now)
+		# Get the current price  
+		mask = (log_nord_pool_data['TimeStamp'] > (now - datetime.timedelta(hours=1))) & (log_nord_pool_data['TimeStamp'] < now)
+		value = log_nord_pool_data[mask]
+
+	if isinstance(now, list):
+			# Convert all entries in now to datetime
+			now_list = [pd.to_datetime(t) for t in now]
+			now = now_list[0]
+
+			# Get data from Nord Pool
+			log_nord_pool_data = get_nordpool_data(now)
+
+			# Set TimeStamp as index for reindexing
+			log_nord_pool_data = log_nord_pool_data.set_index('TimeStamp')
+
+			# Reindex to ensure all times in now_list are included
+			value = log_nord_pool_data.reindex(now_list).fillna(0).reset_index()
+
+
+
+	return value
 
 def concat_data(prev_data, new_data):	
 	if new_data.empty:
@@ -396,66 +418,9 @@ def sheck_for_gaps_in_data(df):
 
 
 if __name__ == "__main__":
-		now, utz = get_now(verbose=False)
-
-		# remove log_nordpool.pkl and log_nordpool.csv
-		try:
-			os.remove('data/log_nordpool.pkl')
-		except:
-			pass
-
-		try:
-			os.remove('data/log_nordpool.csv')
-		except:
-			pass
-
-
-
-
-		create_simulated_data(now)
-
-		test_setup = [3,8,4,None, 0, None]
-
-		for parameter in test_setup:
-
-			# remove log_nordpool.pkl and log_nordpool.csv
-			try:
-				os.remove('data/log_nordpool.pkl')
-			except:
-				pass
-
-			try:
-				os.remove('data/log_nordpool.csv')
-			except:
-				pass
-
-			if parameter != None:
-				prev_data = get_simulated_prev_data(now - datetime.timedelta(days=parameter))
-			else:
-				prev_data = pd.DataFrame()
-
-			save_data(prev_data)
-		
-			df = load_data()
-			# Print the last 5 rows
-			print(df.tail())
-
-			new_data = getSpotPrice(now, prev_data, verbose=True, test=True)
-			print()
-
-			save_data(new_data)
-			# Print the last 5 rows
-			print(new_data.tail())
-
-
-			# print(f"First time stamp: {new_data['TimeStamp'].iloc[0]}")
-			ret = sheck_for_gaps_in_data(new_data)
-			# print(f"Last time stamp: {new_data['TimeStamp'].iloc[-1]}")
-			# Get days of data
-			numb_of_days = new_data['TimeStamp'].iloc[-1] - new_data['TimeStamp'].iloc[0] + datetime.timedelta(days=1)
-			# print(f"Number of days: {numb_of_days.days}")
-			if numb_of_days.days - 1 == 5:
-				print("Data contains 5 days of data.")
-			else:
-				print(f"Data does not contain 5 days of data but {numb_of_days.days} days of data.")
-
+	# Load NordPool data
+	now = datetime.datetime.now()
+	value = get_current_price(datetime.datetime.now())
+	print(value)
+	# nordpool_data = get_nordpool_data(now, test=True)
+	# print(nordpool_data)

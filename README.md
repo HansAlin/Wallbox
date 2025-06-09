@@ -1,7 +1,7 @@
 # Wallbox
 Wallbox is for anyone who has a GARO Wallbox (GLB Fixed cable Wifi) for charging their EV and that has prices on electric power from Nordpool.
 
-The code is currently running on a UBUNTU machine. However, the goal is to implement the code on a Raspberry Pi. 
+The code is currently running on a Raspberry Pi 5 8GB. 
 
 ## Notes
 1. In the code, there is a function that reads the temperature from a device on my roof. The reason for that is the power should be available when it is low temperature. If you don't implement temperature reader the function just returns False, it is not low temperature.

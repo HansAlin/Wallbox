@@ -9,6 +9,7 @@ import GARO.garo as garo
 import CONFIG.config as conf
 
 import CHARGE.charge as cc 
+# Test 1
 
 if os.getenv('PYTHONDEBUG', '0') == '1':
     test = True
@@ -234,6 +235,7 @@ while True:
 		do_charge = cc.power_constraints(response['charge_type'], garo_status=connected)	
 	else:
 		do_charge = data['charge']
+
 
 	charging, connected, available = cc.changeChargeStatusGaro(charging=data['charging'], 
 																												charge=do_charge, 
