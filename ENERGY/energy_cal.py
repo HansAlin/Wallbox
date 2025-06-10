@@ -284,7 +284,8 @@ class Energy:
       energy_values = np.array(energy_list) * 3600 # Unit Wh -> Ws
       datetime_series = now
       power_values = np.array(power_list)
-      spot_price = get_current_price(now)['value']* energy_values / (1000 * 3600) * 3600 / time_delta                # Spot price is in öre/kWh
+      spot_price = get_current_price(now)* energy_values / (1000 * 3600) * 3600 / time_delta  
+      # Spot price is in öre/kWh
     else:
       seconds_this_month = self.seconds_this_month(pd.to_datetime(now[-1]))
       energy_values = np.array(energy_list.values) / 3600
@@ -295,7 +296,6 @@ class Energy:
     additional_spot_price = energy_price['add_cost_per_kWh'] * energy_values / (1000 * 3600) * 3600 / time_delta  # Convert from öre/kWh to öre/Ws
     fixed_energy_month_price = energy_price['fixed_cost_per_month'] * np.ones_like(energy_values) * 3600 / seconds_this_month
     moms = energy_price['moms'] * (additional_spot_price + fixed_energy_month_price + spot_price)  # Calculate the VAT on the total cost
-
     # Power
     fixed_power_month_price = power_price['fast_avgift'] * np.ones_like(power_values) * time_delta / seconds_this_month
     transfer_fee = power_price['överföringsavgift'] * energy_values / (1000 * 3600) * time_delta 
@@ -466,7 +466,6 @@ class Energy:
     # Cost
     cost, timestamp = self.calculate_cost(energy, power['1']+ power['2']+ power['3'], now, time_delta=3600, distribution_type=self.distribution_type)
     self.cost_hour_list.add([str(now), cost])
-
 
     # Update thingspeak
     if not test:

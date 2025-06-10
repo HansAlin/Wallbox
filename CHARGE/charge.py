@@ -13,7 +13,7 @@ import sys
 
 # Add the parent folder to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
+# Test 1
 
 from matplotlib.dates import DateFormatter
 
@@ -399,21 +399,36 @@ def  power_constraints(charging_type='auto', garo_status=None):
 	
 	if (house_power < third_highest_power and
 		possible_power > min_power):
-
-		print(f"Charge power: {possible_power:.2f} kW", end=" ")
-		charge_current = int(possible_power / (voltage * nr_phases))
+     
+		time.sleep(20)
+		# Rpeat all power constraints
+		current_power = power_data['power_current_mean'] # Including charging
+		third_highest_power = power_data['third_highest_power']
+		current_charging_power = get_status('currentChargingPower')
+		house_power = current_power - current_charging_power
+		possible_power = third_highest_power - house_power
+  
+		if (house_power < third_highest_power and
+			possible_power > min_power):
+			
+			print(f"Charge power: {possible_power:.2f} kW", end=" ")
+			charge_current = int(possible_power / (voltage * nr_phases))
+			charge_current = min(charge_current, max_current)
+			
+			if pressent_current - 1 < charge_current < pressent_current + 1:
+				current = int(pressent_current)
+				print(f"Power constraints OK, charge current: {current} A", end=" ")
+			else:
+				set_Garo_current(int(charge_current))
+			return True
 		
-		if pressent_current - 1 < charge_current < pressent_current + 1:
-			current = int(pressent_current)
-			print(f"Power constraints OK, charge current: {current} A", end=" ")
-		else:
-			set_Garo_current(int(charge_current))
-		return True
 	else:
 		# Not OK to charge
 		# Adjust the current value
 		charge_current = 0
 		print(f"Power constraints not OK, charge current: {charge_current} A", end=" ")
+		if pressent_current != charge_current:
+			set_Garo_current(charge_current)
 		return False
 
 def get_power_data(retries=3, delay=2):
