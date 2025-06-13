@@ -286,25 +286,25 @@ class Energy:
     # All costs are calculated per hour
     if np.isscalar(energy_list):
       seconds_this_month = self.seconds_this_month(pd.to_datetime(now))
-      energy_values = np.array(energy_list) * 3600 # Unit Wh -> Ws
+      energy_values = np.array(energy_list) / 1000 # Unit Wh -> kWh
       datetime_series = now
       power_values = np.array(power_list)
-      spot_price = get_current_price(now)['value']* energy_values / (1000 * 3600) * 3600 / time_delta  
+      spot_price = get_current_price(now)['value']* energy_values * 3600 / time_delta  # Scale to get price over one hour
       # Spot price is in öre/kWh
     else:
       seconds_this_month = self.seconds_this_month(pd.to_datetime(now[-1]))
-      energy_values = np.array(energy_list.values) / 3600
+      energy_values = np.array(energy_list.values) / 1000  # Convert from Wh to kWh
       datetime_series = energy_list.datetime
       power_values = np.array(power_list.values)
-      spot_price = get_current_price(energy_list.datetime)['value'].values * energy_values / (1000 * 3600) * time_delta
-    #spot_price = get_historical_price() #TODO yet to be implemented
-    additional_spot_price = energy_price['add_cost_per_kWh'] * energy_values / (1000 * 3600) * 3600 / time_delta  # Convert from öre/kWh to öre/Ws
+      spot_price = get_current_price(energy_list.datetime)['value'].values * energy_values  * time_delta
+    #
+    additional_spot_price = energy_price['add_cost_per_kWh'] * energy_values * 3600 / time_delta  # Scale to get price over one hour
     fixed_energy_month_price = energy_price['fixed_cost_per_month'] * np.ones_like(energy_values) * 3600 / seconds_this_month
     moms = energy_price['moms'] * (additional_spot_price + fixed_energy_month_price + spot_price)  # Calculate the VAT on the total cost
     # Power
-    fixed_power_month_price = power_price['fast_avgift'] * np.ones_like(power_values) * time_delta / seconds_this_month
-    transfer_fee = power_price['överföringsavgift'] * energy_values / (1000 * 3600) * time_delta 
-    taxes = (power_price['energiskatt'] + power_price['skatteavdrag'] ) * energy_values / (1000 * 3600) * time_delta
+    fixed_power_month_price = power_price['fast_avgift'] * np.ones_like(power_values) * 3600 / seconds_this_month # Convert from öre/month to öre/hour
+    transfer_fee = power_price['överföringsavgift'] * energy_values * 3600 / time_delta # Scale to get price over one hour
+    taxes = (power_price['energiskatt'] + power_price['skatteavdrag'] ) * energy_values * 3600 / time_delta # Scale to get price over one hour
     # If energy_values are not a scaler
     if not np.isscalar(energy_values):
       effektavgift = self.distribute_power_costs(now, distribution_type=distribution_type) # Distribute the power costs
@@ -328,7 +328,7 @@ class Energy:
         # Change last entry
         power_3rd_highest_list[-1] = self.power_current_hour_mean 
 
-        power_fee = power_price['effektavgift'] / 1000 * np.mean(power_3rd_highest_list)  # Convert from öre/kW to öre/Ws
+        power_fee = power_price['effektavgift'] / 1000 * np.mean(power_3rd_highest_list)  # Convert from öre/kW to öre/W
       elif distribution_type == 'mean':
         # Calculate the mean of the power values
         power_fee = power_price['effektavgift'] / 1000 * self.power_month_list.mean_3rd_highest  # Convert from öre/kW to öre/Ws
