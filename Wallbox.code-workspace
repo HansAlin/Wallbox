@@ -1,0 +1,23 @@
+{
+    "folders": [
+        {
+            "path": "."
+        }
+    ],
+    "settings": {
+        "python.analysis.extraPaths": [
+            "${workspaceFolder}"
+        ],
+        "terminal.integrated.env.windows": {
+            "PYTHONPATH": "${workspaceFolder}"
+        },
+        "python.envFile": "${workspaceFolder}/.env"
+    },
+    "launch": {
+        "version": "0.2.0",
+        "configurations": [
+
+
+        ]
+    }
+}

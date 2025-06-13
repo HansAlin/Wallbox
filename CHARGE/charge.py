@@ -358,8 +358,8 @@ def  power_constraints(charging_type='auto', garo_status=None):
 	elif nr_phases == 3:
 		max_current = 6 #TODO implement such that values comes from GARO
 	pressent_current, currentChargingCurrent = get_Garo_current_limit()
-
-	if charging_type == 'now':
+	print(f"Charging type: {charging_type}, present current: {pressent_current} A", end=" ")
+	if charging_type == 'on':
 		charge_current = max_current
 
 		if pressent_current != charge_current:
@@ -401,7 +401,7 @@ def  power_constraints(charging_type='auto', garo_status=None):
 		possible_power > min_power):
      
 		time.sleep(20)
-		# Rpeat all power constraints
+		# Repeat all power constraints
 		current_power = power_data['power_current_mean'] # Including charging
 		third_highest_power = power_data['third_highest_power']
 		current_charging_power = get_status('currentChargingPower')

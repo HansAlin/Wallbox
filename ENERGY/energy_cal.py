@@ -1,3 +1,7 @@
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from GARO.garo import get_current_consumtion
 from SpotPrice.spotprice import get_current_price, get_nordpool_data
 from CONFIG.config import low_price, energy_price, power_price
@@ -9,7 +13,7 @@ import thingspeak
 from CONFIG.config import channel_id, api_key
 from CHARGE.charge import get_now
 import json
-import os
+
 import portalocker
 
 class PowerList:
@@ -193,7 +197,7 @@ class PowerList:
 
 class Energy:
 
-  def __init__(self, distribution_type='3rd_highest'):
+  def __init__(self, distribution_type='3rd_highest', test=False):
     """ 
     Available distribution types:
     - '3rd_highest': Distributes the power costs over the three highest power values in the month.
@@ -213,6 +217,7 @@ class Energy:
     self.each_hour_time, _ = get_now()
     self.distribution_type = distribution_type
     self.numpy_encoder = NumpyEncoder()
+    self.test = test
     
     # Load energy status from file to dictionary
     try:
@@ -284,7 +289,7 @@ class Energy:
       energy_values = np.array(energy_list) * 3600 # Unit Wh -> Ws
       datetime_series = now
       power_values = np.array(power_list)
-      spot_price = get_current_price(now)* energy_values / (1000 * 3600) * 3600 / time_delta  
+      spot_price = get_current_price(now)['value']* energy_values / (1000 * 3600) * 3600 / time_delta  
       # Spot price is in öre/kWh
     else:
       seconds_this_month = self.seconds_this_month(pd.to_datetime(now[-1]))
@@ -393,14 +398,14 @@ class Energy:
 
     return power_fee_list
 
-  def update(self, test):
+  def update(self):
 
     elapsed_time = time.time() - self.start_time
     self.start_time = time.time()
-    if test: 
+    if self.test: 
        print("Test mode") 
     now, utc_off = get_now()
-    current = get_current_consumtion(test)
+    current = get_current_consumtion(self.test)
     if current == None:
       return None
     power = self.get_power(current)
@@ -435,7 +440,7 @@ class Energy:
       self.cost_hour_list.reset()
 
       # Update thingspeak
-      if not test:
+      if not self.test:
         self.ch.update({6: self.energy_acc_hour, 7: get_current_price(now), 8:self.power_current_hour_mean})
 
       self.energy_acc_hour = 0
@@ -468,7 +473,7 @@ class Energy:
     self.cost_hour_list.add([str(now), cost])
 
     # Update thingspeak
-    if not test:
+    if not self.test:
       self.ch.update({1: power['1'], 2: power['2'], 3: power['3'], 4: self.power_current_hour_mean , 5: self.third_highest_power})
 
     # Print status
@@ -487,7 +492,7 @@ class Energy:
           print(f"{prefix[:-1]}: {type(obj)}")
 
 
-  def save_status_dict_to_file(self, test=False):
+  def save_status_dict_to_file(self):
       status = {
           'voltage': float(self.voltage) if isinstance(self.voltage, np.ndarray) else self.voltage,
           'sleep_time': self.sleep_time,
@@ -509,7 +514,7 @@ class Energy:
       # self.numpy_encoder.test_type(status=status)
       self.numpy_encoder.encode_json(status)
 
-      path = 'data/energy_status_test.json' if test else 'data/energy_status.json'
+      path = 'data/energy_status_test.json' if self.test else 'data/energy_status.json'
       temp_path = path + ".tmp"
 
       with open(temp_path, 'w') as f:
@@ -525,8 +530,8 @@ class Energy:
   def get_power_mean(self):
     return self.power_current_hour_mean
 
-  def load_status_dict_from_file(self, test=False):
-      path = 'data/energy_status_test.json' if test else 'data/energy_status.json'
+  def load_status_dict_from_file(self):
+      path = 'data/energy_status_test.json' if self.test else 'data/energy_status.json'
       with open(path, 'r') as f:
           portalocker.lock(f, portalocker.LOCK_SH)
           status = json.load(f)
@@ -634,7 +639,10 @@ class NumpyEncoder(json.JSONEncoder):
 
 
 if __name__ == "__main__":
-  energy = Energy()
+  
+  
+  energy = Energy(test=True)
+
   distribution_types = ['mean', '3rd_highest', 'weighted']*3
   time_delta = 3600
   now, utc_off = get_now()
@@ -645,10 +653,9 @@ if __name__ == "__main__":
 
   for distribution_type in distribution_types:
     
-    for i in range(10):
-     for j in range(3):
-         if j == index:
-            index += 1         
+    for i in range(3):
+     for j in range(5):
+         if j == i:
             energy.current_hour = now.hour - 1
-         energy.update(test=True)
+         energy.update()
          time.sleep(1)  

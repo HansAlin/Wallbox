@@ -29,7 +29,7 @@ while(True):
 
   try:
     garo.update_Garo_state()
-    _ = energy_cal.update(test=test)
+    _ = energy_cal.update()
 
     print()
 
