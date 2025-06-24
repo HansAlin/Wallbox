@@ -318,6 +318,7 @@ def get_current_price(now):
 			log_nord_pool_data = get_nordpool_data(now)
 
 			# Set TimeStamp as index for reindexing
+			log_nord_pool_data['TimeStamp'] = pd.to_datetime(log_nord_pool_data['TimeStamp']) 
 			log_nord_pool_data = log_nord_pool_data.set_index('TimeStamp')
 
 			# Reindex to ensure all times in now_list are included

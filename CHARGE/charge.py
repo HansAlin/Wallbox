@@ -10,6 +10,7 @@ import json
 import os
 import portalocker
 import sys
+import pickle
 
 # Add the parent folder to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -95,6 +96,14 @@ def get_auto_charge_schedule(nordpool_data, now, fraction):
 			break		
 
 	charge_schedule = charge_schedule.sort_values(by='TimeStamp')
+
+	# Alternative 
+	# Get quantile correspond to the fraction of the history data
+	value_lim = history_data['value'].quantile(fraction)
+	charge_schedule_2 = nordpool_data[nordpool_data['value'] < value_lim]
+	charge_schedule_2 = charge_schedule_2[charge_schedule_2['TimeStamp'] >= now]
+	print(f"Auto_2: {charge_schedule_2}")
+	print(f"Auto_1: {charge_schedule}")
 
 	print(f"Auto: {len(charge_schedule)} h", end=' ')
 
@@ -370,15 +379,15 @@ def  power_constraints(charging_type='auto', garo_status=None):
 
 
 	voltage = power_data['voltage']
-	current_power = power_data['power_current_mean'] # Including charging
+	current_mean_power = power_data['power_current_mean'] # Including charging
 	third_highest_power = power_data['third_highest_power']
 	current_charging_power = get_status('currentChargingPower')
-	house_power = current_power - current_charging_power
+	house_power = current_mean_power - current_charging_power
 	possible_power = third_highest_power - house_power
 
 
 	min_power = min_current * voltage * nr_phases
-	print(f"Current power: {current_power:.2f} kW")
+	print(f"Current mean power: {current_mean_power:.2f} kW")
 	print(f"Current charging power: {current_charging_power:.2f} kW")
 	print(f"House power: {house_power:.2f} kW")
 	print(f"Possible power: {possible_power:.2f} kW")
@@ -392,20 +401,20 @@ def  power_constraints(charging_type='auto', garo_status=None):
 		low_price_time = True
 
 	if low_price_time:
-		current_power = current_power / 2
+		current_mean_power = current_mean_power / 2
 		min_power = min_power / 2
 
-	possible_power = third_highest_power - house_power
+	possible_power = third_highest_power - house_power - 200 # To get some marginal
 	
 	if (house_power < third_highest_power and
 		possible_power > min_power):
      
 		time.sleep(20)
 		# Repeat all power constraints
-		current_power = power_data['power_current_mean'] # Including charging
+		current_mean_power = power_data['power_current_mean'] # Including charging
 		third_highest_power = power_data['third_highest_power']
 		current_charging_power = get_status('currentChargingPower')
-		house_power = current_power - current_charging_power
+		house_power = current_mean_power - current_charging_power
 		possible_power = third_highest_power - house_power
   
 		if (house_power < third_highest_power and
@@ -476,7 +485,7 @@ def get_button_state():
 			new_data['kwh_per_week'] = data['kwh_per_week']
 			new_data['status'] = data['status']
 
-			print("Web respons:", end=" ")
+			# print("Web respons:", end=" ")
 			if data == None:
 				print("None", end=" ")	
 				return None
@@ -522,9 +531,7 @@ def set_button_state(state):
 
 	try:
 		response = requests.post(server_url + '/set_state', json=state).status_code
-		if response == 200:
-			print("Successful update state on server!", end=" ")
-		else:
+		if response != 200:
 			print("Could not update state on server!", end=" ")
 		return response
 	except:
@@ -761,10 +768,11 @@ def update_charge_schedule(data, response, now):
 if __name__ == '__main__':
 	now, _ = get_now()
 	one_hour = datetime.timedelta(hours=1)
-	# print("Time: ", now)
-	# print("Previous hour: ", now - one_hour)
-	# update_Garo_state()
-	resp = power_constraints()
-	print(f"Power constraints: {resp}", end=" ")
-	# data = get_power_data()
-	# print(f"Power data: {data}", end=" ")
+	# scp -r pi@192.168.1.70:~/Projects/Wallbox/data .
+	with open('data/saved_data.pkl', 'rb') as f:
+		file_content = f.read()
+	data = pickle.loads(file_content)
+	schedule = get_auto_charge_schedule(nordpool_data=data['nordpool'], now=now, fraction=0.3)
+	plot_data_schedule(schedule, nordpool_data=data['nordpool'], now=now, save_uniqe_plots=True)
+
+	

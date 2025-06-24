@@ -6,6 +6,7 @@ import requests
 from CONFIG.config import url_garo
 import json
 import random
+import time
 
 
 
@@ -37,6 +38,29 @@ def get_Garo_status(test=False):
 		print("Not able to contact wallbox!", end=" ")
 		return None, None
 	
+def get_soc():
+	# First turn on the charger
+	mode = get_Garo_status('mode')
+	if mode != 'ALWAYS_ON':
+		on_off_Garo('1')
+	# Delay to allow the charger to start
+	time.sleep(30)
+	# Get the status of the charger
+	state = get_Garo_status('chargeStatus')
+	time.sleep(30)
+	if mode == 'ALWAYS_OFF':
+		on_off_Garo('0')
+		print("Charger is turned off after getting SOC.")
+	elif mode == 'SCHEMA':
+		on_off_Garo('2')
+		print("Charger is set to schema after getting SOC.")
+	elif mode == 'ALWAYS_ON':
+		print("Charger is left on after getting SOC.")
+
+
+	return state
+
+
 def update_Garo_state(verbose=False):
 
 	try:
@@ -204,7 +228,6 @@ def get_current_consumtion(test=False):
 	except Exception as e:
 		print(f'Not able to update status in GARO!', end=" ")
 
-
 def on_off_Garo(value):
 	"""
 	This function takes the argument value and sets 
@@ -347,15 +370,8 @@ if __name__ == '__main__':
 	# print(value)
 	update_Garo_state()
 
-	# # value = get_current_consumtion()
-	# # print(value)
-	# #value = get_charge_status()
-	# value = get_accumulated_energy()
-	# print(value)
-	status = get_status('nrOfPhases', verbose=False)
-	print(status)
-	status = get_status('currentChargingPower', verbose=False)
-	print(status)
+	soc = get_soc()
+	print(f"State of charge: {soc}")
 
 
 

@@ -54,8 +54,6 @@ class DataManager:
             print(f"Pickle load failed: {e}")
             self.state = {}
 
-
-
 def update_data_periodically():
     while True:
         data_manager.read_json_file()

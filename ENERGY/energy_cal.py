@@ -280,6 +280,26 @@ class Energy:
     seconds_this_month = (now - first_day_of_month).total_seconds()
     return seconds_this_month
 
+  def seconds_in_timeseries(self, timeseries):
+    """
+    This function calculates the seconds in the timeseries containing
+    datetime object. It takes the last datetime object in the series
+    minus the first datetime object in the series. It also adds the seconds
+    from the average the individual timestamps.
+    """
+    first_datetime = pd.to_datetime(timeseries[0])
+    last_datetime = pd.to_datetime(timeseries[-1])
+    seconds = (last_datetime - first_datetime).total_seconds()
+    # Add the average seconds from the individual timestamps
+    if len(timeseries) > 1:
+      avg_seconds = (last_datetime - first_datetime) / (len(timeseries) - 1)
+      seconds += avg_seconds.total_seconds()
+    else:
+       seconds += 3600
+
+    return seconds
+
+
   def calculate_cost(self, energy_list, power_list, now, time_delta, distribution_type='3rd_highest'):
 
     # Energy 
@@ -289,14 +309,14 @@ class Energy:
       energy_values = np.array(energy_list) / 1000 # Unit Wh -> kWh
       datetime_series = now
       power_values = np.array(power_list)
-      spot_price = get_current_price(now)['value']* energy_values * 3600 / time_delta  # Scale to get price over one hour
+      spot_price = get_current_price(now)['value'].values * energy_values * 3600 / time_delta  # Scale to get price over one hour
       # Spot price is in öre/kWh
     else:
       seconds_this_month = self.seconds_this_month(pd.to_datetime(now[-1]))
       energy_values = np.array(energy_list.values) / 1000  # Convert from Wh to kWh
       datetime_series = energy_list.datetime
       power_values = np.array(power_list.values)
-      spot_price = get_current_price(energy_list.datetime)['value'].values * energy_values  * time_delta
+      spot_price = get_current_price(energy_list.datetime)['value'].values * energy_values  * 3600 / time_delta
     #
     additional_spot_price = energy_price['add_cost_per_kWh'] * energy_values * 3600 / time_delta  # Scale to get price over one hour
     fixed_energy_month_price = energy_price['fixed_cost_per_month'] * np.ones_like(energy_values) * 3600 / seconds_this_month
@@ -310,7 +330,7 @@ class Energy:
       effektavgift = self.distribute_power_costs(now, distribution_type=distribution_type) # Distribute the power costs
     else:
        effektavgift = np.ones_like(power_values) * self.current_power_cost(now, distribution_type=distribution_type, time_delta=time_delta) # Calculate the current power cost
-    cost = additional_spot_price + fixed_energy_month_price + moms + fixed_power_month_price + transfer_fee + taxes + effektavgift
+    cost = spot_price + additional_spot_price + fixed_energy_month_price + moms + fixed_power_month_price + transfer_fee + taxes + effektavgift
 
     return cost, datetime_series
 
@@ -328,7 +348,7 @@ class Energy:
         # Change last entry
         power_3rd_highest_list[-1] = self.power_current_hour_mean 
 
-        power_fee = power_price['effektavgift'] / 1000 * np.mean(power_3rd_highest_list)  # Convert from öre/kW to öre/W
+        power_fee = power_price['effektavgift'] / 1000 * np.mean(power_3rd_highest_list) / 3 # Convert from öre/kW to öre/W
       elif distribution_type == 'mean':
         # Calculate the mean of the power values
         power_fee = power_price['effektavgift'] / 1000 * self.power_month_list.mean_3rd_highest  # Convert from öre/kW to öre/Ws
@@ -357,24 +377,31 @@ class Energy:
     power_fee_list = np.zeros_like(self.power_month_list.values)
 
     seconds_this_month = self.seconds_this_month(now)
-    acc_seconds_this_month = self.acc_seconds_this_month(now)
+    seconds_this_time_serie = self.seconds_in_timeseries(self.power_month_list.datetime)
 
     if distribution_type == '3rd_highest':
-       indeces_3rd_highest = [self.power_month_list.get_index_by_order(i) for i in range(0, 3)]
+       if self.power_month_list.len < 3:
+          # If there are less than 3 entries, return zero cost
+          return power_fee_list
+       else:
+         indeces_3rd_highest = [self.power_month_list.get_index_by_order(i) for i in range(0, 3)]
        for index in indeces_3rd_highest:
           power_fee_list[index] = power_fee / len(indeces_3rd_highest)
     elif distribution_type == 'mean':
       # Distribute the mean power cost evenly across all entries
       # and scale it by the ratio of the acc_seconds_this_month to seconds_this_month
-      ratio = acc_seconds_this_month / seconds_this_month
+      ratio = seconds_this_time_serie / seconds_this_month
       power_fee_list += power_fee * ratio / len(self.power_month_list.values)
     elif distribution_type == 'weighted':
        # Distribute the power cost based on the power values
        # and scale it by the ratio of the acc_seconds_this_month to seconds_this_month
-       ratio = acc_seconds_this_month / seconds_this_month
+       ratio = seconds_this_time_serie / seconds_this_month
        total_power = sum(self.power_month_list.values)
        for index, value in enumerate(self.power_month_list.values):
-          scaled_value = value * ratio / total_power
+          if total_power == 0:
+            scaled_value = 0
+          else:
+            scaled_value = value * ratio / total_power
           power_fee_list[index] = scaled_value * power_fee        
     else:
       raise ValueError("Invalid distribution type. Use '3rd_highest', 'mean', or 'weighted'.")
@@ -435,7 +462,11 @@ class Energy:
  
       # Update cost
       nows = self.energy_month_list.datetime
-      cost_month_list, timestamp = self.calculate_cost(self.energy_month_list, self.power_month_list, nows, seconds_since_last_hour, distribution_type=self.distribution_type)
+      cost_month_list, timestamp = self.calculate_cost(energy_list=self.energy_month_list, 
+                                                       power_list=self.power_month_list, 
+                                                       now=nows, 
+                                                       time_delta=seconds_since_last_hour, 
+                                                       distribution_type=self.distribution_type)
       self.cost_month_list.update_values(cost_month_list, timestamp)
       self.cost_hour_list.reset()
 
@@ -469,7 +500,11 @@ class Energy:
     self.third_highest_power = self.power_month_list.third_highest
 
     # Cost
-    cost, timestamp = self.calculate_cost(energy, power['1']+ power['2']+ power['3'], now, time_delta=3600, distribution_type=self.distribution_type)
+    cost, timestamp = self.calculate_cost(energy_list=energy, 
+                                          power_list=power['1']+ power['2']+ power['3'], 
+                                          now=now, 
+                                          time_delta=3600,
+                                          distribution_type=self.distribution_type)
     self.cost_hour_list.add([str(now), cost])
 
     # Update thingspeak
@@ -641,21 +676,46 @@ class NumpyEncoder(json.JSONEncoder):
 if __name__ == "__main__":
   
   
-  energy = Energy(test=True)
+  energy = Energy(test=True, distribution_type='weighted')
 
-  distribution_types = ['mean', '3rd_highest', 'weighted']*3
-  time_delta = 3600
+
+#   alternative_energy_list = []
+#   for state in energy.power_month_list._data:
+#      alternative_energy_list.append([state[0], state[1] ])  # Convert from W to Wh
+#   energy.energy_month_list.update(alternative_energy_list)
+#   print(f"Power month list: {energy.power_month_list.get()}")
+#   formatted_energy_list = [
+#      [f"{state[0]}", state[1]] for state in energy.energy_month_list.get()
+#   ]
+#   print(f"Energy month list: {formatted_energy_list}")
+#   nows = energy.energy_month_list.datetime
+#   cost_month_list, timestamp = energy.calculate_cost(energy_list=energy.energy_month_list, 
+#                                                     power_list=energy.power_month_list, 
+#                                                     now=nows, 
+#                                                     time_delta=3600, 
+#                                                     distribution_type=energy.distribution_type)
+
+#   energy.cost_month_list.update_values(cost_month_list, timestamp)
+# # Format the energy month list for printing with double quotes
+# formatted_energy_list = [
+#     [state[0], state[1]] for state in energy.energy_month_list.get()
+# ]
+# print(f"Energy month list: {json.dumps(formatted_energy_list)}")
+
+# # Format the cost month list for printing with double quotes
+# formatted_cost_list = [
+#     [state[0], state[1]] for state in energy.cost_month_list.get()
+# ]
+# print(f"Cost month list: {json.dumps(formatted_cost_list)}")
+
   now, utc_off = get_now()
   energy.save_status_dict_to_file()
 
-  if_first_time = True  
-  index = 0
+  # index = 0
 
-  for distribution_type in distribution_types:
-    
-    for i in range(3):
-     for j in range(5):
-         if j == i:
-            energy.current_hour = now.hour - 1
-         energy.update()
-         time.sleep(1)  
+  for i in range(4):
+    for j in range(6):
+        if j == i:
+          energy.current_hour = now.hour - i
+        energy.update()
+        time.sleep(1)  

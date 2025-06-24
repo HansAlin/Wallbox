@@ -72,7 +72,6 @@ _ = cc.set_button_state({'charge_type':data['charge_type'],
 
 while True:
 	now, utc_offset = cc.get_now()
-	print()
 	
 	if not cc.connected_to_lan(test=test):
 		time.sleep(time_to_sleep)
@@ -163,11 +162,11 @@ while True:
 		#################################################################
 		# Turn status to auto as default																#
 		#################################################################
-		if response['charge_type'] == 'on' or 'fast_smart' \
-				and data['schedule'].empty:
+		if response['charge_type'] == ('on' or 'fast_smart') \
+				and data['schedule'].empty: 
 			
 			print("Default auto!", end=" ")
-			_  = cc.set_button_state({'charge_type':response['charge_type']})
+			_  = cc.set_button_state({'charge_type': 'auto'})
 
 		###############      LOW TEMP			###############################
 		# If the temperature is low, charge the car!										#
@@ -195,7 +194,7 @@ while True:
 		data['charge_type'] = 'auto'
 
 		# Update webstate
-		_  = cc.set_button_state({'charge_type':response['charge_type']})
+		_  = cc.set_button_state({'charge_type':'auto'})
 
 		data['schedule'] = schedule
 		data['charge'] = charge
@@ -251,6 +250,11 @@ while True:
 		if datetime.timedelta(hours=1) + data['schedule']['TimeStamp'].iloc[-1] < now:
 			schedule = pd.DataFrame()
 			data['schedule'] = schedule
+			# Set to auto
+			data['charge_type'] = 'auto'
+			# Update webstate
+			_  = cc.set_button_state({'charge_type': 'auto'})
+
 
 	new_download = False   # After the first loop of new data it turns to old
 	data['new_down_load'] = new_download
