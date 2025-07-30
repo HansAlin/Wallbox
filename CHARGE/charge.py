@@ -15,10 +15,13 @@ import pickle
 # Add the parent folder to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # Test 1
+# Add the parent folder to sys.path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Test 1
 
 from matplotlib.dates import DateFormatter
 
-from GARO.garo import on_off_Garo, get_Garo_status, set_Garo_current, get_Garo_current_limit, get_status, update_Garo_state
+from GARO.garo import on_off_Garo, get_Garo_status, set_Garo_current, get_Garo_current_limit, get_status, update_Garo_state, get_status, update_Garo_state
 from CONFIG.config import low_temp_url, server_url, tz_region, router_url, low_price
 from SpotPrice.spotprice import getSpotPrice
 
@@ -105,6 +108,14 @@ def get_auto_charge_schedule(nordpool_data, now, fraction):
 	print(f"Auto_2: {charge_schedule_2}")
 	print(f"Auto_1: {charge_schedule}")
 
+	# Alternative 
+	# Get quantile correspond to the fraction of the history data
+	value_lim = history_data['value'].quantile(fraction)
+	charge_schedule_2 = nordpool_data[nordpool_data['value'] < value_lim]
+	charge_schedule_2 = charge_schedule_2[charge_schedule_2['TimeStamp'] >= now]
+	print(f"Auto_2: {charge_schedule_2}")
+	print(f"Auto_1: {charge_schedule}")
+
 	print(f"Auto: {len(charge_schedule)} h", end=' ')
 
 	return charge_schedule, value_lim
@@ -124,6 +135,11 @@ def get_fast_smart_schedule(nordpool_data, now, hour_to_charged, charge_limit, s
 			schedule
 			value_lim: the value of the last value in the average of the lowest fraction of the history
 	"""
+	#TODO Start charge in order to get the correct SOC value from car
+	# on_off_Garo('1')
+	# time.sleep(10)
+	# soc = get_status('chargeStatus')
+	# time.sleep(10)
 	#TODO Start charge in order to get the correct SOC value from car
 	# on_off_Garo('1')
 	# time.sleep(10)
@@ -360,13 +376,23 @@ def  power_constraints(charging_type='auto', garo_status=None):
 	power_data = get_power_data()
 	
 	nr_phases = log_data['R Fas value'].values[0]
+	log_data = get_log()
+	power_data = get_power_data()
+	
+	nr_phases = log_data['R Fas value'].values[0]
 	
 	min_current = 6	#TODO implement such that values comes from GARO
 	if nr_phases == 1:
 		max_current = 13 #TODO implement such that values comes from GARO
 	elif nr_phases == 3:
 		max_current = 6 #TODO implement such that values comes from GARO
+	if nr_phases == 1:
+		max_current = 13 #TODO implement such that values comes from GARO
+	elif nr_phases == 3:
+		max_current = 6 #TODO implement such that values comes from GARO
 	pressent_current, currentChargingCurrent = get_Garo_current_limit()
+	print(f"Charging type: {charging_type}, present current: {pressent_current} A", end=" ")
+	if charging_type == 'on':
 	print(f"Charging type: {charging_type}, present current: {pressent_current} A", end=" ")
 	if charging_type == 'on':
 		charge_current = max_current
@@ -378,15 +404,27 @@ def  power_constraints(charging_type='auto', garo_status=None):
 		return True
 
 
+
 	voltage = power_data['voltage']
 	current_mean_power = power_data['power_current_mean'] # Including charging
 	third_highest_power = power_data['third_highest_power']
 	current_charging_power = get_status('currentChargingPower')
 	house_power = current_mean_power - current_charging_power
 	possible_power = third_highest_power - house_power
+	current_mean_power = power_data['power_current_mean'] # Including charging
+	third_highest_power = max(power_data['third_highest_power'], 3000) # 3 kW is the minimum value
+	current_charging_power = get_status('currentChargingPower')
+	house_power = current_mean_power - current_charging_power
+	possible_power = third_highest_power - house_power
 
 
 	min_power = min_current * voltage * nr_phases
+	print(f"Current mean power: {current_mean_power:.2f} kW")
+	print(f"Current charging power: {current_charging_power:.2f} kW")
+	print(f"House power: {house_power:.2f} kW")
+	print(f"Possible power: {possible_power:.2f} kW")
+	print(f"Third highest power: {third_highest_power:.2f} kW")
+	print(f"Min power: {min_power:.2f} kW")
 	print(f"Current mean power: {current_mean_power:.2f} kW")
 	print(f"Current charging power: {current_charging_power:.2f} kW")
 	print(f"House power: {house_power:.2f} kW")
@@ -411,11 +449,13 @@ def  power_constraints(charging_type='auto', garo_status=None):
      
 		time.sleep(20)
 		# Repeat all power constraints
+		power_data = get_power_data()
 		current_mean_power = power_data['power_current_mean'] # Including charging
-		third_highest_power = power_data['third_highest_power']
+		third_highest_power = max(power_data['third_highest_power'], 3000) # 3 kW is the minimum value
 		current_charging_power = get_status('currentChargingPower')
 		house_power = current_mean_power - current_charging_power
 		possible_power = third_highest_power - house_power
+
   
 		if (house_power < third_highest_power and
 			possible_power > min_power):
@@ -439,6 +479,25 @@ def  power_constraints(charging_type='auto', garo_status=None):
 		if pressent_current != charge_current:
 			set_Garo_current(charge_current)
 		return False
+
+def get_power_data(retries=3, delay=2):
+    path = 'data/energy_status.json'
+    for attempt in range(retries):
+        try:
+            if os.path.getsize(path) < 10:
+                raise ValueError("File too small to be valid JSON")
+
+            with open(path, 'r') as file:
+                portalocker.lock(file, portalocker.LOCK_SH)
+                data = json.load(file)
+                portalocker.unlock(file)
+                return data
+        except (json.JSONDecodeError, ValueError, OSError) as e:
+            print(f"Attempt {attempt + 1} failed: {e}")
+            time.sleep(delay)
+
+    raise RuntimeError("Failed to read power data after multiple attempts")
+
 
 def get_power_data(retries=3, delay=2):
     path = 'data/energy_status.json'
@@ -486,6 +545,7 @@ def get_button_state():
 			new_data['status'] = data['status']
 
 			# print("Web respons:", end=" ")
+			# print("Web respons:", end=" ")
 			if data == None:
 				print("None", end=" ")	
 				return None
@@ -531,6 +591,7 @@ def set_button_state(state):
 
 	try:
 		response = requests.post(server_url + '/set_state', json=state).status_code
+		if response != 200:
 		if response != 200:
 			print("Could not update state on server!", end=" ")
 		return response
@@ -583,6 +644,7 @@ def lowTemp():
 		If the temperture is above -18 or the device is not available it returns False
 	"""
 
+
 	temp = get_temp()
 
 	if temp == None:
@@ -618,6 +680,7 @@ def create_data_file():
 	data['charge'] = False
 	data['charging'] = True
 	data['connected'] = 0
+	data['available'] = 0
 	data['available'] = 0
 	data['hours'] = 0
 	data['set_time'] = 0

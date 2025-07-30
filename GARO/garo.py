@@ -2,10 +2,19 @@
 import sys
 import os
 
+
+import sys
+import os
+
 import requests
 from CONFIG.config import url_garo
 import json
 import random
+import time
+
+
+
+
 import time
 
 
@@ -37,6 +46,30 @@ def get_Garo_status(test=False):
 	except:
 		print("Not able to contact wallbox!", end=" ")
 		return None, None
+	
+def get_soc():
+	# First turn on the charger
+	mode = get_Garo_status('mode')
+	if mode != 'ALWAYS_ON':
+		on_off_Garo('1')
+	# Delay to allow the charger to start
+	time.sleep(30)
+	# Get the status of the charger
+	state = get_Garo_status('chargeStatus')
+	time.sleep(30)
+	if mode == 'ALWAYS_OFF':
+		on_off_Garo('0')
+		print("Charger is turned off after getting SOC.")
+	elif mode == 'SCHEMA':
+		on_off_Garo('2')
+		print("Charger is set to schema after getting SOC.")
+	elif mode == 'ALWAYS_ON':
+		print("Charger is left on after getting SOC.")
+
+
+	return state
+
+
 	
 def get_soc():
 	# First turn on the charger
@@ -97,6 +130,40 @@ def update_Garo_state(verbose=False):
 			print(json.dumps(status, indent=4))
 	except Exception as e:
 		print(f'Not able to get status in GARO! {e}', end=" ")
+
+# def get_Garo_status(state=None, verbose=False):
+# 	"""
+# 	This function returns the status of the GARO charger
+# 	"""
+# 	try:
+# 		with open('data/garo_status.json', 'r') as f:
+# 			data = json.load(f)
+# 		if verbose:
+# 			print(data)
+# 		if state is not None:
+# 			status = data.get(state)
+# 			if verbose:
+# 				print(f"Status of state {state}: {status}", end=" ")
+# 	except Exception as e:
+# 		print(f'Not able to load status in GARO! {e}', end=" ")
+# 		status = None
+
+def get_meterinfo(state, verbose=False):
+	"""
+	This function returns the status of the GARO charger
+	"""
+	try:
+		with open('data/garo_meterinfo.json', 'r') as f:
+			data = json.load(f)
+		if verbose:
+			print(data)
+		if state is not None:
+			status = data.get(state)
+			if verbose:
+				print(f"Status of state {state}: {status}", end=" ")
+	except Exception as e:
+		print(f'Not able to load meterinfo in GARO! {e}', end=" ")
+		data = None		
 
 # def get_Garo_status(state=None, verbose=False):
 # 	"""
@@ -308,9 +375,28 @@ def set_Garo_current(value, retries=3, delay=2):
 	else:
 			print("Max retries exceeded for GET request.")
 			return
+	# Retry logic for GET request
+	for attempt in range(retries):
+			try:
+					response = requests.get(config_url, timeout=5)
+					response.raise_for_status()  # Raise HTTPError for bad responses (4xx, 5xx)
+					break
+			except requests.exceptions.ConnectionError as e:
+					print(f"Connection error: {e}. Retrying ({attempt + 1}/{retries})...")
+					time.sleep(delay)
+			except requests.exceptions.Timeout as e:
+					print(f"Timeout error: {e}. Retrying ({attempt + 1}/{retries})...")
+					time.sleep(delay)
+			except requests.exceptions.RequestException as e:
+					print(f"Failed to get config: {e}")
+					return
+	else:
+			print("Max retries exceeded for GET request.")
+			return
 
 	config = response.json()
 
+	# Modify the configuration
 	# Modify the configuration
 	config["reducedIntervalsEnabled"] = True
 	config["reducedCurrentIntervals"] = [
@@ -342,6 +428,22 @@ def set_Garo_current(value, retries=3, delay=2):
 			except requests.exceptions.RequestException as e:
 					print(f"Failed to set current limit: {e}")
 					return
+	# Retry logic for POST request
+	for attempt in range(retries):
+			try:
+					post_response = requests.post(post_url, headers=headers, data=json.dumps(config), timeout=5)
+					post_response.raise_for_status()  # Raise HTTPError for bad responses
+					print(f"Successfully set current limit to {value}A")
+					return
+			except requests.exceptions.ConnectionError as e:
+					print(f"Connection error: {e}. Retrying ({attempt + 1}/{retries})...")
+					time.sleep(delay)
+			except requests.exceptions.Timeout as e:
+					print(f"Timeout error: {e}. Retrying ({attempt + 1}/{retries})...")
+					time.sleep(delay)
+			except requests.exceptions.RequestException as e:
+					print(f"Failed to set current limit: {e}")
+					return
 	else:
 			print("Max retries exceeded for POST request.")
 
@@ -349,8 +451,13 @@ def get_charge_current(verbose=False):
 	"""
 	This function retrieves the current charging current from a local JSON file.
 	"""
+	"""
+	This function retrieves the current charging current from a local JSON file.
+	"""
 	status_path = "data/garo_status.json"
 	try:
+			with open(status_path, 'r') as f:
+					data = json.load(f)
 			with open(status_path, 'r') as f:
 					data = json.load(f)
 
@@ -365,6 +472,26 @@ def get_charge_current(verbose=False):
 	except Exception as e:
 			print(f"Unexpected error: {e}")
 	return None
+			print(f"Unexpected error: {e}")
+	return None
+
+def get_status(state, verbose=False):
+	"""
+	This function returns the status of the GARO charger
+	"""
+
+	try:
+		with open('data/garo_status.json', 'r') as f:
+			data = json.load(f)
+		status = data.get(state)
+		if verbose:
+			print(data)
+			print(f"Status of state {state}: {status}", end=" ")
+	except Exception as e:
+		print(f'Not able to load status in GARO! {e}', end=" ")
+		status = None
+
+	return status
 
 def get_status(state, verbose=False):
 	"""
