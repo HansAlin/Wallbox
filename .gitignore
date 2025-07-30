@@ -21,3 +21,4 @@ LEAF/
 Nordpool/
 .gitignore
 **/prodeployer_config.txt
+static/*.png

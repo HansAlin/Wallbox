@@ -166,14 +166,16 @@ def upload_image():
 
 @app.route('/plot.png')
 def plot_png(): 
-    nordpool = state.get('nordpool', pd.DataFrame())
+    with threading.Lock():
+        nordpool = state.get('nordpool', pd.DataFrame())
+        schedule = state.get('schedule', pd.DataFrame())
     if nordpool.empty:
         return "No data available", 404
 
     value = nordpool['value'].values
     time = nordpool['TimeStamp'].values
     
-    schedule = state.get('schedule', pd.DataFrame())
+    
     if not schedule.empty:
         schedule['TimeStamp'] = pd.to_datetime(schedule['TimeStamp'])
         schedule_times = schedule['TimeStamp'].values

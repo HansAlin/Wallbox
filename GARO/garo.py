@@ -281,26 +281,37 @@ def get_Garo_current_limit():
 
 	return charge_current, currentChargingCurrent
 
-
-def set_Garo_current(value):
+def set_Garo_current(value, retries=3, delay=2):
 	"""
-	This function sets the current in GARO
-	"""    
-	# Value has to be between 6 and 13
-	if value < 6:
-		value = 6
-	elif value > 13:
-		value = 13
+	This function sets the current in GARO with improved error handling and retry logic.
+	"""
+	# Ensure the value is within the allowed range
+	value = max(6, min(value, 13))
 
 	config_url = f"{url_garo}/servlet/rest/chargebox/config"
 
-	response = requests.get(config_url)
-	if response.status_code != 200:
-			raise Exception(f"Failed to get config: {response.status_code}, {response.text}")
+	# Retry logic for GET request
+	for attempt in range(retries):
+			try:
+					response = requests.get(config_url, timeout=5)
+					response.raise_for_status()  # Raise HTTPError for bad responses (4xx, 5xx)
+					break
+			except requests.exceptions.ConnectionError as e:
+					print(f"Connection error: {e}. Retrying ({attempt + 1}/{retries})...")
+					time.sleep(delay)
+			except requests.exceptions.Timeout as e:
+					print(f"Timeout error: {e}. Retrying ({attempt + 1}/{retries})...")
+					time.sleep(delay)
+			except requests.exceptions.RequestException as e:
+					print(f"Failed to get config: {e}")
+					return
+	else:
+			print("Max retries exceeded for GET request.")
+			return
 
 	config = response.json()
 
-	# Step 2: Modify only what you need
+	# Modify the configuration
 	config["reducedIntervalsEnabled"] = True
 	config["reducedCurrentIntervals"] = [
 			{
@@ -312,32 +323,48 @@ def set_Garo_current(value):
 			}
 	]
 
-	# Step 3: POST the updated config
 	post_url = f"{url_garo}/servlet/rest/chargebox/currentlimit"
 	headers = {"Content-Type": "application/json"}
 
-	post_response = requests.post(post_url, headers=headers, data=json.dumps(config))
-
-	#  Check the response
-	if post_response.status_code == 200:
-		print(f"Successfully set current limit to {value}A", end=" ")	
+	# Retry logic for POST request
+	for attempt in range(retries):
+			try:
+					post_response = requests.post(post_url, headers=headers, data=json.dumps(config), timeout=5)
+					post_response.raise_for_status()  # Raise HTTPError for bad responses
+					print(f"Successfully set current limit to {value}A")
+					return
+			except requests.exceptions.ConnectionError as e:
+					print(f"Connection error: {e}. Retrying ({attempt + 1}/{retries})...")
+					time.sleep(delay)
+			except requests.exceptions.Timeout as e:
+					print(f"Timeout error: {e}. Retrying ({attempt + 1}/{retries})...")
+					time.sleep(delay)
+			except requests.exceptions.RequestException as e:
+					print(f"Failed to set current limit: {e}")
+					return
 	else:
-		print(f"Failed to set current limit: {post_response.status_code}", end=" ")
+			print("Max retries exceeded for POST request.")
 
 def get_charge_current(verbose=False):
-
+	"""
+	This function retrieves the current charging current from a local JSON file.
+	"""
 	status_path = "data/garo_status.json"
 	try:
-		with open(status_path, 'r') as f:
-			data = json.load(f)
+			with open(status_path, 'r') as f:
+					data = json.load(f)
 
-		charge_current = data['mainCharger'].get('currentChargingCurrent')
-		if verbose:
-			print(f"Current charging current: {charge_current}", end=" ")
-		return charge_current
+			charge_current = data['mainCharger'].get('currentChargingCurrent')
+			if verbose:
+					print(f"Current charging current: {charge_current}")
+			return charge_current
+	except FileNotFoundError:
+			print(f"Status file not found: {status_path}")
+	except json.JSONDecodeError:
+			print(f"Error decoding JSON from {status_path}")
 	except Exception as e:
-		print(f'Not able to get current in GARO! {e}', end=" ")
-		return None
+			print(f"Unexpected error: {e}")
+	return None
 
 def get_status(state, verbose=False):
 	"""
