@@ -505,6 +505,7 @@ class Energy:
                                           now=now, 
                                           time_delta=3600,
                                           distribution_type=self.distribution_type)
+    cost = cost[0] #TODO Fix this should it rally come as an array?
     self.cost_hour_list.add([str(now), cost])
 
     # Update thingspeak
@@ -512,7 +513,7 @@ class Energy:
       self.ch.update({1: power['1'], 2: power['2'], 3: power['3'], 4: self.power_current_hour_mean , 5: self.third_highest_power})
 
     # Print status
-    print(f"Power: {float(power['1']+ power['2']+ power['3']):>7.1f} W, Mean power: {self.power_current_hour_mean.item():>7.1f} W, Third highest power: {self.third_highest_power:>7.1f} W, Current {cost.item():>7.3f} öre/h", end=" ")
+    print(f"Power: {float(power['1']+ power['2']+ power['3']):>7.1f} W, Mean power: {self.power_current_hour_mean.item():>7.1f} W, Third highest power: {self.third_highest_power:>7.1f} W, Current cost {cost:>7.3} öre/h", end=" ")
     # Save status to file
     self.save_status_dict_to_file()
       

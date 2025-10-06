@@ -3,6 +3,7 @@ import os
 import time
 import pandas as pd
 import datetime
+import json
 
 import pickle
 import GARO.garo as garo
@@ -72,6 +73,7 @@ _ = cc.set_button_state({'charge_type':data['charge_type'],
 
 while True:
 	now, utc_offset = cc.get_now()
+	garo.update_Garo_state()
 	
 	if not cc.connected_to_lan(test=test):
 		time.sleep(time_to_sleep)
@@ -92,6 +94,7 @@ while True:
 		response, available, nord_pool_data, schedule, connected = test_debug.get_next_combination()
 		# Update state
 		data = test_debug.update_state(data, now)
+
 
 
 	if connected == None or connected == 'CHARGING_PAUSED':
@@ -141,8 +144,10 @@ while True:
 		#################################################################
 		if  not data['schedule'].empty:
 			charge = cc.ifCharge(charge_schedule=data['schedule'], now=now)
+			print("Schedule charge?", charge, end=" ") 
 		else:
 			charge = False
+			print("No schedule!", charge, end=" ")
 		
 		data['charge'] = charge
 
@@ -183,7 +188,7 @@ while True:
 
 
 	################### WHEN CAR STOPPED CHARGING ###################
-	#																															  #
+	#	TODO remove this after test if possible																														  #
 	#################################################################
 	elif connected == "CHARGING_FINISHED":
 		print("Charging finished!", end=" ")
@@ -235,7 +240,6 @@ while True:
 	else:
 		do_charge = data['charge']
 
-
 	charging, connected, available = cc.changeChargeStatusGaro(charging=data['charging'], 
 																												charge=do_charge, 
 																												connected=connected, 
@@ -247,13 +251,22 @@ while True:
 	# If the schedule is out of date, delete it												 #
 	#####################################################################
 	if not data['schedule'].empty:
-		if datetime.timedelta(hours=1) + data['schedule']['TimeStamp'].iloc[-1] < now:
+		if datetime.timedelta(minutes=15) + data['schedule']['TimeStamp'].iloc[-1] < now:
 			schedule = pd.DataFrame()
 			data['schedule'] = schedule
 			# Set to auto
 			data['charge_type'] = 'auto'
+			data['charge'] = False
 			# Update webstate
 			_  = cc.set_button_state({'charge_type': 'auto'})
+	else:
+		schedule = pd.DataFrame()
+		data['schedule'] = schedule
+		# Save to auto
+		data['charge_type'] = 'auto'
+		data['charge'] = False
+		# Update webstate
+		_  = cc.set_button_state({'charge_type': 'auto'})		
 
 
 	new_download = False   # After the first loop of new data it turns to old
@@ -272,6 +285,9 @@ while True:
 
 	with open('data/saved_data.pkl', 'wb') as f:
 			pickle.dump(data,f)
+	with open('data/saved_data.txt', 'w') as f:
+			f.write(str(data))
+
 	cc.save_log(data, now, connected, available, response)	
 	print()
 	time.sleep(time_to_sleep)

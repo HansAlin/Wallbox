@@ -52,16 +52,22 @@ def update_file(settings):
         print(f"Error writing to file: {e}")
 
 def read_pkl_file():
-    global state
+    global state, plot_image
     try:
         with open(PICKLE_FILE, 'rb') as f:
             state = pickle.load(f)
-        # Convert pandas timestamps to ensure they're JSON serializable
-        if 'nordpool' in state and not state['nordpool'].empty:
-            state['nordpool']['TimeStamp'] = pd.to_datetime(state['nordpool']['TimeStamp'])
+        with data_lock:
+            if 'nordpool' in state and not state['nordpool'].empty:
+                state['nordpool']['TimeStamp'] = pd.to_datetime(state['nordpool']['TimeStamp'])
+            else:
+                print("Nordpool data is missing or empty.")
+            if 'schedule' not in state:
+                print("Schedule data is missing.")
+            plot_image = None  # Clear cached plot
     except (IOError, pickle.UnpicklingError) as e:
         print(f"Error reading pickle file: {e}")
-        state = {}  # Initialize as empty dict if error occurs
+        with data_lock:
+            state = {}  # Initialize as empty dict if error occurs
 
 def read_garo_values():
     global settings
@@ -70,17 +76,10 @@ def read_garo_values():
     energy = garo.get_accumulated_energy()
     charge_status = garo.get_status('chargeStatus')
 
-<<<<<<< Updated upstream
-    settings['charging_power'] = charging_power
-    settings['energy'] = energy
-    settings['charge_status'] = garo.get_status('chargeStatus')
-    #print(f"Updated settings: {settings}")
-=======
     # Convert potential NumPy types to Python types
     settings['charging_power'] = float(charging_power) if hasattr(charging_power, 'item') else charging_power
     settings['energy'] = float(energy) if hasattr(energy, 'item') else energy
     settings['charge_status'] = int(charge_status) if hasattr(charge_status, 'item') else charge_status
->>>>>>> Stashed changes
 
 def update_periodically():
     global plot_image, last_data_hash
@@ -103,6 +102,8 @@ def update_periodically():
                     print(f"Plot regenerated at {time.strftime('%H:%M:%S')}")
                 except Exception as e:
                     print(f"Error generating plot: {e}")
+            else:
+                print("No changes detected, plot not regenerated.")
         
         time.sleep(UPDATE_INTERVAL)
 
@@ -211,6 +212,7 @@ def plot_png():
             
         try:
             plot_image = generate_plot(nordpool, schedule)
+            print("Plot generated on demand in /plot.png")
         except Exception as e:
             print(f"Error generating plot: {e}")
             return "Error generating plot", 500
@@ -228,20 +230,6 @@ def upload_image():
     image.save(os.path.join('static', filename))
     return '', 200
 
-<<<<<<< Updated upstream
-@app.route('/plot.png')
-def plot_png(): 
-    with threading.Lock():
-        nordpool = state.get('nordpool', pd.DataFrame())
-        schedule = state.get('schedule', pd.DataFrame())
-    if nordpool.empty:
-        return "No data available", 404
-
-    value = nordpool['value'].values
-    time = nordpool['TimeStamp'].values
-    
-    
-=======
 def generate_plot(nordpool, schedule):
     """Generate plot image and return as bytes"""
     value = nordpool['value'].values
@@ -249,7 +237,6 @@ def generate_plot(nordpool, schedule):
     
     # Convert schedule times to set for O(1) lookup
     schedule_times = set()
->>>>>>> Stashed changes
     if not schedule.empty:
         schedule['TimeStamp'] = pd.to_datetime(schedule['TimeStamp'])
         schedule_times = set(schedule['TimeStamp'].values)
@@ -272,13 +259,13 @@ def generate_plot(nordpool, schedule):
             blue_times.append(t)
             blue_values.append(v)
     
-    # Plot all bars at once (more efficient)
+    # Plot all bars at once (more efficient) 35
     if green_times:
-        axs.bar(green_times, green_values, width=0.03, color='green')
+        axs.bar(green_times, green_values, width=0.035, color='green', align='edge')
     if blue_times:
-        axs.bar(blue_times, blue_values, width=0.03, color='blue')
+        axs.bar(blue_times, blue_values, width=0.035, color='blue', align='edge')
     
-    axs.axvline(now, color='red', linestyle='--', label='Now')
+    axs.axvline(now, color='red', linestyle='--', label=f'Now: {now.strftime("%H:%M")}')
     axs.set_title('Price Nordpool', fontsize=24)
     axs.set_xlabel('Time', fontsize=20)
     axs.set_ylabel('Öre', fontsize=20)
@@ -299,11 +286,12 @@ def get_data_hash(nordpool, schedule):
     if nordpool.empty:
         return "empty"
     
-    # Create hash from key data points
-    data_str = f"{len(nordpool)}{nordpool['value'].sum()}{len(schedule)}"
-    if not schedule.empty:
-        data_str += f"{schedule['TimeStamp'].min()}{schedule['TimeStamp'].max()}"
+    # Convert DataFrames to strings for hashing
+    nordpool_str = nordpool.to_csv(index=False)
+    schedule_str = schedule.to_csv(index=False) if not schedule.empty else ""
     
+    # Create hash from the combined string
+    data_str = nordpool_str + schedule_str
     return hashlib.md5(data_str.encode()).hexdigest()
 
 if __name__ == '__main__':

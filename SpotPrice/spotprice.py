@@ -421,7 +421,7 @@ def sheck_for_gaps_in_data(df):
 if __name__ == "__main__":
 	# Load NordPool data
 	now = datetime.datetime.now()
-	value = get_current_price(datetime.datetime.now())
-	print(value)
-	# nordpool_data = get_nordpool_data(now, test=True)
-	# print(nordpool_data)
+	# value = get_current_price(datetime.datetime.now())
+	# print(value)
+	nordpool_data = getSpotPrice(now, pd.DataFrame(), verbose=True, test=False)
+	print(nordpool_data)

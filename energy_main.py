@@ -28,7 +28,7 @@ sleep_time = conf.sleep_time
 while(True):
 
   try:
-    garo.update_Garo_state()
+    
     _ = energy_cal.update()
 
     print()

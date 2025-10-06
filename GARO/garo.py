@@ -11,6 +11,8 @@ from CONFIG.config import url_garo
 import json
 import random
 import time
+from filelock import FileLock 
+from requests.exceptions import Timeout
 
 
 
@@ -47,28 +49,6 @@ def get_Garo_status(test=False):
 		print("Not able to contact wallbox!", end=" ")
 		return None, None
 	
-def get_soc():
-	# First turn on the charger
-	mode = get_Garo_status('mode')
-	if mode != 'ALWAYS_ON':
-		on_off_Garo('1')
-	# Delay to allow the charger to start
-	time.sleep(30)
-	# Get the status of the charger
-	state = get_Garo_status('chargeStatus')
-	time.sleep(30)
-	if mode == 'ALWAYS_OFF':
-		on_off_Garo('0')
-		print("Charger is turned off after getting SOC.")
-	elif mode == 'SCHEMA':
-		on_off_Garo('2')
-		print("Charger is set to schema after getting SOC.")
-	elif mode == 'ALWAYS_ON':
-		print("Charger is left on after getting SOC.")
-
-
-	return state
-
 
 	
 def get_soc():
@@ -93,60 +73,51 @@ def get_soc():
 
 	return state
 
+def fetch_and_save_data(url, output_file, verbose=False):
+	"""Fetch data from a URL and save it to a file with file locking."""
+	try:
+			response = requests.get(url=url, timeout=30)
+			response.raise_for_status()
+			data = response.json()
+
+			# Ensure the directory exists
+			os.makedirs(os.path.dirname(output_file), exist_ok=True)
+
+			# Use a file lock to prevent conflicts
+			lock_file = f"{output_file}.lock"
+			with FileLock(lock_file, timeout=10):  # Lock the file for up to 10 seconds
+					with open(output_file, 'w') as f:
+							json.dump(data, f, indent=4)
+
+			if verbose:
+					print(json.dumps(data, indent=4))
+
+	except Timeout:
+			print(f"Could not acquire lock for {output_file} within the timeout period.")
+	except requests.exceptions.RequestException as e:
+			print(f"Failed to fetch data from {url}: {e}")
+	except Exception as e:
+			print(f"An error occurred: {e}")
+
 
 def update_Garo_state(verbose=False):
 
 	try:
-		url = f"{url_garo}/servlet/rest/chargebox/config"
-		response = requests.get(url=url, timeout=30)
-		config = response.json()
-		with open('data/garo_config.json', 'w') as f:
-			json.dump(config, f, indent=4)
-		if verbose:
-			print(json.dumps(config, indent=4))	
-
+			fetch_and_save_data(f"{url_garo}/servlet/rest/chargebox/config", 'data/garo_config.json', verbose)
 	except Exception as e:
-		print(f'Not able to get config in GARO! {e}', end=" ")
+			print(f'Not able to get config in GARO! {e}', end=" ")
 
 	try:
-		url = f"{url_garo}/servlet/rest/chargebox/meterinfo/EXTERNAL"
-		response = requests.get(url=url, timeout=30)
-		meterinfo = response.json()
-		with open('data/garo_meterinfo.json', 'w') as f:
-			json.dump(meterinfo, f, indent=4)
-		if verbose:
-			print(json.dumps(meterinfo, indent=4))	
-
+			fetch_and_save_data(f"{url_garo}/servlet/rest/chargebox/meterinfo/EXTERNAL", 'data/garo_meterinfo.json', verbose)
 	except Exception as e:
-		print(f'Not able to get meterinfo in GARO! {e}', end=" ")
+			print(f'Not able to get meterinfo in GARO! {e}', end=" ")
 
 	try:
-		url = f"{url_garo}/servlet/rest/chargebox/status?_=1"
-		response = requests.get(url=url, timeout=30)
-		status = response.json()
-		with open('data/garo_status.json', 'w') as f:
-			json.dump(status, f, indent=4)
-		if verbose:
-			print(json.dumps(status, indent=4))
+			fetch_and_save_data(f"{url_garo}/servlet/rest/chargebox/status?_=1", 'data/garo_status.json', verbose)
 	except Exception as e:
-		print(f'Not able to get status in GARO! {e}', end=" ")
+			print(f'Not able to get status in GARO! {e}', end=" ")
 
-# def get_Garo_status(state=None, verbose=False):
-# 	"""
-# 	This function returns the status of the GARO charger
-# 	"""
-# 	try:
-# 		with open('data/garo_status.json', 'r') as f:
-# 			data = json.load(f)
-# 		if verbose:
-# 			print(data)
-# 		if state is not None:
-# 			status = data.get(state)
-# 			if verbose:
-# 				print(f"Status of state {state}: {status}", end=" ")
-# 	except Exception as e:
-# 		print(f'Not able to load status in GARO! {e}', end=" ")
-# 		status = None
+
 
 def get_meterinfo(state, verbose=False):
 	"""
@@ -165,39 +136,6 @@ def get_meterinfo(state, verbose=False):
 		print(f'Not able to load meterinfo in GARO! {e}', end=" ")
 		data = None		
 
-# def get_Garo_status(state=None, verbose=False):
-# 	"""
-# 	This function returns the status of the GARO charger
-# 	"""
-# 	try:
-# 		with open('data/garo_status.json', 'r') as f:
-# 			data = json.load(f)
-# 		if verbose:
-# 			print(data)
-# 		if state is not None:
-# 			status = data.get(state)
-# 			if verbose:
-# 				print(f"Status of state {state}: {status}", end=" ")
-# 	except Exception as e:
-# 		print(f'Not able to load status in GARO! {e}', end=" ")
-# 		status = None
-
-def get_meterinfo(state, verbose=False):
-	"""
-	This function returns the status of the GARO charger
-	"""
-	try:
-		with open('data/garo_meterinfo.json', 'r') as f:
-			data = json.load(f)
-		if verbose:
-			print(data)
-		if state is not None:
-			status = data.get(state)
-			if verbose:
-				print(f"Status of state {state}: {status}", end=" ")
-	except Exception as e:
-		print(f'Not able to load meterinfo in GARO! {e}', end=" ")
-		data = None		
 
 def get_garo_state():
 
@@ -322,12 +260,12 @@ def on_off_Garo(value):
 		response = requests.post(url, data=data)
 
 		# Check if the request was successful
-		if response.status_code == 200:
-				print('Request successful!')
-				print('Response:', response.text)  # Optional: print the response from the server
-		else:
-				print(f'Error: {response.status_code}')
-				print('Response:', response.text)  # Print response to debug
+		# if response.status_code == 200:
+		# 		print('Request successful!')
+		# 		print('Response:', response.text)  # Optional: print the response from the server
+		# else:
+		# 		print(f'Error: {response.status_code}')
+		# 		print('Response:', response.text)  # Print response to debug
 	except requests.exceptions.RequestException as e:
 		print(f"Error occurred: {e}")
 		return None
@@ -472,8 +410,6 @@ def get_charge_current(verbose=False):
 	except Exception as e:
 			print(f"Unexpected error: {e}")
 	return None
-			print(f"Unexpected error: {e}")
-	return None
 
 def get_status(state, verbose=False):
 	"""
@@ -493,23 +429,7 @@ def get_status(state, verbose=False):
 
 	return status
 
-def get_status(state, verbose=False):
-	"""
-	This function returns the status of the GARO charger
-	"""
 
-	try:
-		with open('data/garo_status.json', 'r') as f:
-			data = json.load(f)
-		status = data.get(state)
-		if verbose:
-			print(data)
-			print(f"Status of state {state}: {status}", end=" ")
-	except Exception as e:
-		print(f'Not able to load status in GARO! {e}', end=" ")
-		status = None
-
-	return status
 
 
 
@@ -524,8 +444,8 @@ if __name__ == '__main__':
 	# print(value)
 	update_Garo_state()
 
-	soc = get_soc()
-	print(f"State of charge: {soc}")
+	m = get_Garo_status()
+	print(m)
 
 
 
