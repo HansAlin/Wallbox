@@ -255,8 +255,6 @@ def save_data(df):
 
 		df.to_csv('data/log_nordpool.csv')
 
-
-
 def load_data():
 	try:
 		with open('data/log_nordpool.pkl', 'rb') as f:
@@ -295,10 +293,6 @@ def get_current_price(now):
 		float: The current price
 	"""
 
-
-
-
-
 	# Nordpool dataenergy
 	if isinstance(now, str) or isinstance(now, datetime.datetime):
 		# Make sure that now is a pandas datetime object
@@ -324,8 +318,6 @@ def get_current_price(now):
 			# Reindex to ensure all times in now_list are included
 			value = log_nord_pool_data.reindex(now_list).fillna(0).reset_index()
 
-
-
 	return value
 
 def concat_data(prev_data, new_data):	
@@ -335,65 +327,6 @@ def concat_data(prev_data, new_data):
 	df = df.reset_index(drop=True)
 	return df
 
-def create_simulated_data(now):
-
-	# Create test Data
-	with open('data/test_data.pkl', 'rb') as f:
-		df = pickle.load(f)
-	# To datetime without utz
-	# Convert 'TimeStamp' to datetime
-	df['TimeStamp'] = pd.to_datetime(df['TimeStamp'], errors='coerce')
-
-	# Check if the conversion was successful
-	if df['TimeStamp'].isnull().any():
-			raise ValueError("Some 'TimeStamp' values could not be converted to datetime.")
-
-	# Remove timezone information
-	df['TimeStamp'] = df['TimeStamp'].apply(lambda x: x.replace(tzinfo=None))
-
-	diff = (now - df['TimeStamp'].iloc[-1]).days
-	# Shift data
-	if now.hour >= 14:
-		add = 2
-	else:
-		add = 1 
-	df['TimeStamp'] = df['TimeStamp'] + datetime.timedelta(days=diff + add)	
-
-	# Create another week of data from First entry and backwards
-	copy_df = df.copy()
-	last = copy_df['TimeStamp'].iloc[0]
-	first = copy_df['TimeStamp'].iloc[-1]
-	diff = (first - last).days
-	copy_df['TimeStamp'] = copy_df['TimeStamp'] - datetime.timedelta(days=diff + 1)
-	df = pd.concat([copy_df, df], axis=0, ignore_index=True)
-
-	sheck_for_gaps_in_data(df)
-
-	with open('data/simulated_test_data.pkl', 'wb') as f:
-		pickle.dump(df,f)
-
-def get_simulated_prev_data(last_date):
-	with open('data/simulated_test_data.pkl', 'rb') as f:
-		df = pickle.load(f)
-
-	# Convert 'TimeStamp' to datetime
-	df['TimeStamp'] = pd.to_datetime(df['TimeStamp'], errors='coerce')
-
-	# Check if the conversion was successful
-	if df['TimeStamp'].isnull().any():
-			raise ValueError("Some 'TimeStamp' values could not be converted to datetime.")
-
-	# Remove timezone information
-	df['TimeStamp'] = df['TimeStamp'].apply(lambda x: x.replace(tzinfo=None))
-
-	last_year = last_date.year
-	last_month = last_date.month
-	last_day = last_date.day
-	# Make the 
-	last_day = datetime.datetime(year=last_year, month=last_month, day=last_day)
-
-	df = df[df['TimeStamp'] < last_day]
-	return df
 
 def get_simulated_new_data(now):
 	with open('data/simulated_test_data.pkl', 'rb') as f:
@@ -406,15 +339,78 @@ def get_simulated_new_data(now):
 	df = df[df['TimeStamp'].dt.day == now.day]
 	return df
 
-def sheck_for_gaps_in_data(df):
-	nr_rows = df.shape[0]
-	for i in range(1, nr_rows):
-		diff = df['TimeStamp'].iloc[i] - df['TimeStamp'].iloc[i-1]
-		if diff > datetime.timedelta(days=1):
-			#print(f"Gap between larger than 1 day: {diff} between {df['TimeStamp'].iloc[i-1]} and {df['TimeStamp'].iloc[i]}")
-			print("There are gaps in the data.")
 
-	print("There are no gaps in the data.")
+############ Not used functions  ##########
+
+# def get_simulated_prev_data(last_date):
+# 	with open('data/simulated_test_data.pkl', 'rb') as f:
+# 		df = pickle.load(f)
+
+# 	# Convert 'TimeStamp' to datetime
+# 	df['TimeStamp'] = pd.to_datetime(df['TimeStamp'], errors='coerce')
+
+# 	# Check if the conversion was successful
+# 	if df['TimeStamp'].isnull().any():
+# 			raise ValueError("Some 'TimeStamp' values could not be converted to datetime.")
+
+# 	# Remove timezone information
+# 	df['TimeStamp'] = df['TimeStamp'].apply(lambda x: x.replace(tzinfo=None))
+
+# 	last_year = last_date.year
+# 	last_month = last_date.month
+# 	last_day = last_date.day
+# 	# Make the 
+# 	last_day = datetime.datetime(year=last_year, month=last_month, day=last_day)
+
+# 	df = df[df['TimeStamp'] < last_day]
+# 	return df
+	
+# def create_simulated_data(now):
+
+# 	# Create test Data
+# 	with open('data/test_data.pkl', 'rb') as f:
+# 		df = pickle.load(f)
+# 	# To datetime without utz
+# 	# Convert 'TimeStamp' to datetime
+# 	df['TimeStamp'] = pd.to_datetime(df['TimeStamp'], errors='coerce')
+
+# 	# Check if the conversion was successful
+# 	if df['TimeStamp'].isnull().any():
+# 			raise ValueError("Some 'TimeStamp' values could not be converted to datetime.")
+
+# 	# Remove timezone information
+# 	df['TimeStamp'] = df['TimeStamp'].apply(lambda x: x.replace(tzinfo=None))
+
+# 	diff = (now - df['TimeStamp'].iloc[-1]).days
+# 	# Shift data
+# 	if now.hour >= 14:
+# 		add = 2
+# 	else:
+# 		add = 1 
+# 	df['TimeStamp'] = df['TimeStamp'] + datetime.timedelta(days=diff + add)	
+
+# 	# Create another week of data from First entry and backwards
+# 	copy_df = df.copy()
+# 	last = copy_df['TimeStamp'].iloc[0]
+# 	first = copy_df['TimeStamp'].iloc[-1]
+# 	diff = (first - last).days
+# 	copy_df['TimeStamp'] = copy_df['TimeStamp'] - datetime.timedelta(days=diff + 1)
+# 	df = pd.concat([copy_df, df], axis=0, ignore_index=True)
+
+# 	sheck_for_gaps_in_data(df)
+
+# 	with open('data/simulated_test_data.pkl', 'wb') as f:
+# 		pickle.dump(df,f)
+
+# def sheck_for_gaps_in_data(df):
+# 	nr_rows = df.shape[0]
+# 	for i in range(1, nr_rows):
+# 		diff = df['TimeStamp'].iloc[i] - df['TimeStamp'].iloc[i-1]
+# 		if diff > datetime.timedelta(days=1):
+# 			#print(f"Gap between larger than 1 day: {diff} between {df['TimeStamp'].iloc[i-1]} and {df['TimeStamp'].iloc[i]}")
+# 			print("There are gaps in the data.")
+
+# 	print("There are no gaps in the data.")
 
 
 

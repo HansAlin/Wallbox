@@ -10,7 +10,6 @@ import json
 import os
 import portalocker
 import sys
-import pickle
 
 # Add the parent folder to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -21,11 +20,11 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from matplotlib.dates import DateFormatter
 
-from GARO.garo import on_off_Garo, get_Garo_status, set_Garo_current, get_Garo_current_limit, get_status, update_Garo_state, get_status, update_Garo_state
+from GARO.garo import on_off_Garo, get_Garo_status, set_Garo_current, get_status, get_config
 from CONFIG.config import low_temp_url, server_url, tz_region, router_url, low_price
 from SpotPrice.spotprice import getSpotPrice
 
-
+charge_current = 0
 
 
 def get_auto_charge_schedule(nordpool_data, now, fraction):
@@ -61,68 +60,80 @@ def get_auto_charge_schedule(nordpool_data, now, fraction):
 
 	# Round 'now' to the nearest 15-minute interval
 	now = now.replace(second=0, microsecond=0)
-	minute = (now.minute // 15) * 15 #TODO change to make independent of interval size
-	now = now.replace(minute=minute)
+	diff = nordpool_data['TimeStamp'].diff().mean()  # Timedelta
+	diff_minutes = int(diff.total_seconds() / 60)          # now a float in minutes
+	minute = int((now.minute // diff_minutes) * diff_minutes) 
 
+	now = now.replace(minute=minute)
 	# Calculate the quantile based on the fraction
 	value_lim = history_data['value'].quantile(fraction)
 
 	# Filter future data based on the value limit
 	charge_schedule = future_data[future_data['value'] < value_lim]
 	charge_schedule = charge_schedule[charge_schedule['TimeStamp'] >= now]
-
 	# Sort the schedule by TimeStamp
 	charge_schedule = charge_schedule.sort_values(by='TimeStamp')
 
-	print(f"Auto: {len(charge_schedule)} intervals (15 min each)", end=' ')
+	print(f"Auto: {len(charge_schedule)} intervals ({diff_minutes} min each), min data value: {future_data['value'].min():.2f}, limit: {value_lim:.2f}", end=' ')
 
 	return charge_schedule, value_lim
 
 def get_fast_smart_schedule(nordpool_data, now, hour_to_charged, charge_limit, set_time=None):
-    """
-    This function creates a charging schedule based on data from nordpool (nordpool_data)
-    It creates a schedule that within the set_time will charge the car for hour_to_charged hours
-    Arguments:
-        nordpool_data: data from nordpool
-        now: current time
-        hour_to_charged: hours for setting schedule
-        charge_limit: value limit for charging, e.g. 89 means that the car will not charge if the value is above 89
-        set_time: hours to the car should be charged
+	"""
+	This function creates a charging schedule based on data from nordpool (nordpool_data)
+	It creates a schedule that within the set_time will charge the car for hour_to_charged hours
+	Arguments:
+	nordpool_data: data from nordpool
+	now: current time
+	hour_to_charged: hours for setting schedule
+	charge_limit: value limit for charging, e.g. 89 means that the car will not charge if the value is above 89
+	set_time: hours to the car should be charged
 
-    Returns:
-        schedule
-        value_lim: the value of the last value in the average of the lowest fraction of the history
-    """
-    # Filter data starting from the current time
-    df_sub = nordpool_data[nordpool_data['TimeStamp'] >= now]
+	Returns:
+	schedule
+	value_lim: the value of the last value in the average of the lowest fraction of the history
+	"""
 
-    # Convert hours to 15-minute intervals
-    intervals_to_charge = hour_to_charged * 4  # 4 intervals per hour #TODO change this to make independent of interval size
+	diff = nordpool_data['TimeStamp'].diff().mean()  # Timedelta
+	diff_minutes = diff.total_seconds() / 60          # now a float in minutes
+	split_per_hour = int(60 / diff_minutes)
+	time_lim = now - datetime.timedelta(minutes=int(diff_minutes))
+	print(f"Time line: {time_lim}")
+	# Filter data starting from the current time
+	df_sub = nordpool_data[nordpool_data['TimeStamp'] >= time_lim]
 
-    if hour_to_charged > charge_limit:
-        # Calculate the stop time based on hour_to_charged
-        stop_charge = now + datetime.timedelta(hours=hour_to_charged)
-        charge_schedule = df_sub[df_sub['TimeStamp'] < stop_charge]
-    else:
-        # Adjust set_time to 15-minute intervals if provided
-        if set_time is not None:
-            set_time_intervals = set_time * 4  # Convert set_time to intervals
-            df_sub = df_sub[df_sub['TimeStamp'] < now + datetime.timedelta(minutes=set_time_intervals * 15)]
 
-        # Select the lowest `intervals_to_charge` values
-        charge_schedule = df_sub.nsmallest(intervals_to_charge, 'value')
 
-    # Sort the schedule by timestamp
-    charge_schedule = charge_schedule.sort_values(by='TimeStamp')
+	intervals_to_charge = hour_to_charged * split_per_hour 
 
-    # Calculate the maximum value in the schedule
-    try:
-        value_lim = charge_schedule['value'].max()
-    except Exception:
-        value_lim = 999
+	if hour_to_charged > charge_limit:
+		# Calculate the stop time based on hour_to_charged
+		stop_charge = now + datetime.timedelta(hours=hour_to_charged)
+		charge_schedule = df_sub[df_sub['TimeStamp'] <= stop_charge]
+	else:
 
-    print(f"Fast smart: for {hour_to_charged} h and Set time: {set_time}, ", end=" ")
-    return charge_schedule, value_lim
+		if set_time is not None:
+			set_time_intervals = set_time
+		else:
+			set_time_intervals = 12
+
+		df_sub = df_sub[df_sub['TimeStamp'] <= now + datetime.timedelta(hours=set_time_intervals)]
+
+	# Select the lowest `intervals_to_charge` values
+	charge_schedule = df_sub.nsmallest(intervals_to_charge, 'value')
+
+	# Sort the schedule by timestamp
+	charge_schedule = charge_schedule.sort_values(by='TimeStamp')
+
+	# Calculate the maximum value in the schedule
+	try:
+		value_lim = charge_schedule['value'].max()
+	except Exception:
+		value_lim = 999
+
+	print(f"Fast smart: {len(charge_schedule)} intervals ({diff_minutes} min each), min data value: {value_lim:.2f}h and Set time: {set_time}, ", end=" ")
+	#print(f"Auto: {len(charge_schedule)} intervals ({diff_minutes} min each), min data value: {future_data['value'].min():.2f}, limit: {value_lim}", end=' ')
+	return charge_schedule, value_lim
 
 def get_on_charge_schedule(nordpool_data, now, hour_to_charged):
 
@@ -147,7 +158,7 @@ def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern, set_time=No
 			hour_to_charge: hours for setting schedule
 			nordpool_data: data from nordpool
 			now: current time
-			pattern: which type of charging pattern available, 'auto', 'fast_smart', 'on'
+			pattern: which type of charging pattern available, 'auto', 'fast_smart', 'manual'
 			set_time: hours to the car should be charged
 			value_lim: the value of the last value in the average of the lowest fraction of the history
 			charge_fraction: the fraction of the avalibale hours to use in the schedule
@@ -167,7 +178,7 @@ def get_chargeSchedule(hour_to_charged, nordpool_data, now, pattern, set_time=No
 	elif pattern == 'auto':
 		charge_schedule, value_lim = get_auto_charge_schedule(nordpool_data, now, charge_fraction)
 
-	elif pattern == 'on':
+	elif pattern == 'manual':
 		hour_to_charged = 16
 		charge_schedule, value_lim = get_on_charge_schedule(nordpool_data, now, hour_to_charged)
 
@@ -209,49 +220,39 @@ def plot_nordpool_data(nordpool_data, now, test=False):
 	except Exception as e:
 		print(f"Could not plot nordpool data: {e}", end=" ")
 
-def plot_data_schedule(charge_schedule, nordpool_data, now, save_uniqe_plots=False):
-	try:	
-		sub_nordpool_data = nordpool_data[nordpool_data['TimeStamp'] > now - datetime.timedelta(hours=24)] 
-		hh = DateFormatter('%H')
-		x1 = sub_nordpool_data['TimeStamp'].values
-		y1 = sub_nordpool_data['value'].values
-		fig, ax = plt.subplots()
-		ax.xaxis.set_major_formatter(hh)
-		ax.scatter(x1, y1 , color='blue')
-		if not charge_schedule.empty:
-			x2 = charge_schedule['TimeStamp'].values
-			y2 = charge_schedule['value'].values
-			ax.scatter(x2, y2, color='green')
-		ax.set_title(f'Schedule')
-		ax.set_ylim(min(y1)- 0.2, max(y1) + 0.2)
-		vertical_line = datetime.datetime.now()
-		ax.axvline(x=vertical_line, color='red')
-		#TODO remove saving of all schedules after testing
-		if save_uniqe_plots:
-			plot_path = f'data/plots/plot_{now.year}-{now.month}-{now.day}_{now.hour}:{now.minute}.png'
-			fig.savefig(plot_path)
-		fig.savefig('static/image.png')
-		plt.close(fig)
-		send_image_to_server('static/image.png')
-	except Exception as e:
-		print(f"Could not plot schedule: {e}", end=" ")
+def ifCharge(charge_schedule, now, time_delta=15):
+	"""
+		This function if current time (now) is within a schedule time delta (time_delta).
 
-def ifCharge(charge_schedule, now):
+		Arguments:
+			charge_schedule (dict/dataframe): Schedule with timestamps where it's OK to charge
+			now: The current timestamp
+			time_delta: How large each schedule step isinstance
+
+		Returns:
+			Bolean: True or False		 
+	"""
 	charge_schedule = pd.DataFrame(charge_schedule)
 
 	for row in charge_schedule['TimeStamp']:
 
 		t_stamp = row
-		if datetime.timedelta(hours=0) <= (now - t_stamp) < datetime.timedelta(hours=1):
+		if datetime.timedelta(hours=0) <= (now - t_stamp) < datetime.timedelta(minutes=time_delta):
 			return True
 
 	return False
 
-def get_charge_fraction(fases, kwh_per_week):
+def get_charge_fraction(phases, kwh_per_week):
+	"""
+		This function estimates the fraction of charging time that is needed.
 
-	if fases == 1:
+		Arguments: 
+			phases: number of phases used in the system
+			kwh_per_week: expected amount of needed energy per week
+	"""
+	if phases == 1:
 		kw = 3 
-	elif fases == 3:
+	elif phases == 3:
 		kw = 9
 	else:	
 		kw = 3
@@ -260,87 +261,73 @@ def get_charge_fraction(fases, kwh_per_week):
 
 	return fraction	 
 
+
 def changeChargeStatusGaro(charging, charge, connected, available, test):
 	"""
-		This function changes the status of the GARO charger
-		Arguments:
-			charging: True if car is currently charging
-			charge: True if the car should be charged
-			connected: What kind of status the GARO charger has
-			available: What kind of status the GARO charger has
-			test: True if the function is in test mode and will not change the status of the GARO charger
-
-		Returns:
-			charging: True if the car is currently charging
-			connected: What kind of status the GARO charger has
-			available: What kind of status the GARO charger has
+	Change the GARO charger status safely with timeouts and error handling.
 	"""
+	#print(f"From changeChargeStatusGaro: connected={connected}, available={available}, charging={charging}, charge={charge}")
 
-	print(f" From changeChargeStatusGaro: connected: {connected}, available: {available}, charging: {charging}, charge: {charge}")
 	if test:
-		print("Test mode! nothing will be changed!	", end=" ")
+		print("Test mode! Nothing will be changed.", end=" ")
+		return charging, connected, available
 
-	elif connected == 'CHARGING_FINISHED' and available == "ALWAYS_ON":
-		turn_on_value = "0"
-		charging = False
-
-		response = on_off_Garo(turn_on_value)
-
-		if not response:
-			charging = True
-			print("Status not changed at GARO!", end=" ")
-		else:
-			print(f"Garo turned off!", end=" ")
-			# Leaf status not available
-			# h, soc = leaf_status(now, utc)
-			# _ = set_button_state({'soc':soc})
-		time.sleep(4)
-		connected, available = get_Garo_status()	
-
-	elif available == "ALWAYS_ON" and charge:
-		print("Garo already on!", end=" ")
-
-	elif available != "ALWAYS_ON" and charge == False:
-		print("Garo already off!", end=" ")
-
-	elif available == "ALWAYS_ON" and charge == False:
-		turn_on_value = "0"
-		charging = False
-
-
-		response = on_off_Garo(turn_on_value)
-
-		if not response:
-			charging = True
-			print("Status not changed at GARO!", end=" ")
-		else:
-			print(f"Garo turned off!", end=" ")
-			# Leaf status not available
-			# h, soc = leaf_status(now, utc)
-			# _ = set_button_state({'soc':soc})
-		time.sleep(4)
-		connected, available = get_Garo_status()	
-
-	elif available != "ALWAYS_ON" and charge  == True:
-		turn_on_value = "1"
-		charging = True
-
-		response = on_off_Garo(turn_on_value)
-
-		if not response:
+	try:
+		if connected == 'CHARGING_FINISHED' and available == "ALWAYS_ON":
+			turn_on_value = "0"
 			charging = False
-			print("Status not changed at GARO!", end=" ")
-		else:
-			print(f"Garo turned on!", end=" ")
-			# Leaf status not available
-			# h, soc = leaf_status(now, utc)
-			# _ = set_button_state({'soc':soc})
-		time.sleep(4)
-		connected, available = get_Garo_status()	
+
+			response = on_off_Garo(turn_on_value)
+			if not response:
+					charging = True
+					print("Status not changed at GARO!", end=" ")
+			else:
+					print("Garo turned off!", end=" ")
+
+			connected, available = get_Garo_status()
+
+		elif available == "ALWAYS_ON" and charge:
+			#print("Garo already on!", end=" ")
+			pass
+
+		elif available != "ALWAYS_ON" and not charge:
+			#print("Garo already off!", end=" ")
+			pass
+
+		elif available == "ALWAYS_ON" and not charge:
+			turn_on_value = "0"
+			charging = False
+
+			response = on_off_Garo(turn_on_value)
+			if not response:
+				charging = True
+				print("Status not changed at GARO!", end=" ")
+			else:
+				print("Garo turned off!", end=" ")
+
+			connected, available = get_Garo_status()
+
+		elif available != "ALWAYS_ON" and charge:
+				turn_on_value = "1"
+				charging = True
+
+				response = on_off_Garo(turn_on_value)
+				if not response:
+						charging = False
+						print("Status not changed at GARO!", end=" ")
+				else:
+						print("Garo turned on!", end=" ")
+
+				connected, available = get_Garo_status()
+
+	except Exception as e:
+			print(f"Error during GARO status change: {e}")
+
 
 	return charging, connected, available
 
-def power_constraints(charging_type='auto', garo_status=None):
+
+def power_constraints(response=None, garo_status=None):
 	"""
 		This function checks if the current power consumtion is below the third highest value
 		in present month. If the power consumtion is below the third highest value with a value that 
@@ -352,61 +339,60 @@ def power_constraints(charging_type='auto', garo_status=None):
 		Returns:
 			True if the power consumtion is below the third highest value
 	"""
-	log_data = get_log()
+	global charge_current
+	charging_type = response['charge_type']
+	max_power = response['max_power']
 	power_data = get_power_data()
 	
-	nr_phases = log_data['R Fas value'].values[0]
-	log_data = get_log()
-	power_data = get_power_data()
+	nr_phases = get_status('nrOfPhases')
 	
-	nr_phases = log_data['R Fas value'].values[0]
-	
-	min_current = 6	#TODO implement such that values comes from GARO
-	if nr_phases == 1:
-		max_current = 13 #TODO implement such that values comes from GARO
-	elif nr_phases == 3:
-		max_current = 6 #TODO implement such that values comes from GARO
-	if nr_phases == 1:
-		max_current = 13 #TODO implement such that values comes from GARO
-	elif nr_phases == 3:
-		max_current = 6 #TODO implement such that values comes from GARO
-	pressent_current, currentChargingCurrent = get_Garo_current_limit()
-	print(f"Charging type: {charging_type}, present current: {pressent_current} A", end=" ")
+	min_current = get_config('minCurrentLimit')
+	max_current = get_config('maxChargeCurrent')
+	current_charging_power = get_status('currentChargingPower')
+	pressent_current_limit = get_config('chargeLimit')
+	val = get_config('currentChargingCurrent')
+	currentChargingCurrent = val / 1000 if val is not None else 0
+	voltage = power_data['voltage']
+	current_mean_power = power_data['power_current_mean'] # Including charging
+	current_power = power_data['power_current_list']
+	third_highest_power = power_data['third_highest_power']
+	house_power = current_mean_power - current_charging_power
+	possible_power = third_highest_power - house_power
+	current_mean_power = power_data['power_current_mean'] # Including charging
+	third_highest_power = max(power_data['third_highest_power'], max_power) 
 
-	if charging_type == 'on':
-		charge_current = max_current
+	if currentChargingCurrent != None:
+		currentChargingCurrent = currentChargingCurrent/1000
+	else: 
+		currentChargingCurrent = 0	
+	house_power = current_mean_power - current_charging_power
+	possible_power = third_highest_power - house_power
 
-		if pressent_current != charge_current:
-			print(f"No power constraints, charge current: {charge_current:.2f} A", end=" ")
+	if nr_phases == 1:
+		max_manual_current = max_current
+	elif nr_phases == 3:
+		max_manual_current = min_current
+
+	if charging_type == 'manual':
+		charge_current = max_manual_current
+
+		if int(pressent_current_limit) != int(charge_current) :
+			print(f"\n No power constraints, charge current: {charge_current:.2f} A", end=" ")
 			set_Garo_current(charge_current)
 
 		return True
 
-
-
-	voltage = power_data['voltage']
-	current_mean_power = power_data['power_current_mean'] # Including charging
-	third_highest_power = power_data['third_highest_power']
-	current_charging_power = get_status('currentChargingPower')
-	house_power = current_mean_power - current_charging_power
-	possible_power = third_highest_power - house_power
-	current_mean_power = power_data['power_current_mean'] # Including charging
-	third_highest_power = max(power_data['third_highest_power'], 3000) # 3 kW is the minimum value
-	current_charging_power = get_status('currentChargingPower')
-	house_power = current_mean_power - current_charging_power
-	possible_power = third_highest_power - house_power
-
-
 	min_power = min_current * voltage * nr_phases
-	print(f"Current mean power: {current_mean_power:.2f} kW")
-	print(f"Current charging power: {current_charging_power:.2f} kW")
-	print(f"House power: {house_power:.2f} kW")
-	print(f"Possible power: {possible_power:.2f} kW")
-	print(f"Third highest power: {third_highest_power:.2f} kW")
-	print(f"Min power: {min_power:.2f} kW")
+
+	print(f"\n Current: mean power: {current_mean_power:.2f} kW", end=' ')
+	print(f"charging power: {current_charging_power:.2f} kW", end=' ')
+	print(f"household power: {house_power:.2f} kW", end=' ')
+	print(f"Possible power: {possible_power:.2f} kW", end=' ')
+	print(f"Third highest power: {third_highest_power:.2f} kW", end=' ')
+	print(f"Min power: {min_power:.2f} kW", end=' ')
 
 
-	now, _ = get_now()
+	now, _ = get_now(verbose=False)
 	hour = now.hour
 	low_price_time = False
 	if hour >= low_price['start'] or hour < low_price['stop']:
@@ -417,34 +403,32 @@ def power_constraints(charging_type='auto', garo_status=None):
 		min_power = min_power / 2
 
 	possible_power = third_highest_power - house_power - 200 # To get some marginal
-	
-	if (house_power < third_highest_power and
-		possible_power > min_power):
-     
-		time.sleep(20)
-		# Repeat all power constraints
-		power_data = get_power_data()
-		current_mean_power = power_data['power_current_mean'] # Including charging
-		third_highest_power = max(power_data['third_highest_power'], 3000) # 3 kW is the minimum value
-		current_charging_power = get_status('currentChargingPower')
-		house_power = current_mean_power - current_charging_power
-		possible_power = third_highest_power - house_power
 
-  
-		if (house_power < third_highest_power and
-			possible_power > min_power):
-			
-			print(f"Charge power: {possible_power:.2f} kW", end=" ")
-			charge_current = int(possible_power / (voltage * nr_phases))
-			charge_current = min(charge_current, max_current)
-			
-			if pressent_current - 1 < charge_current < pressent_current + 1:
-				current = int(pressent_current)
+	if (current_mean_power < third_highest_power ):
+
+		charge_current = int(possible_power / (voltage * nr_phases))
+		charge_current = min(charge_current, max_current)
+
+		print(f"Charge power: {possible_power:.2f} kW, Charge current: {charge_current}", end=" ")
+
+		if charge_current >= min_current:
+		
+			if pressent_current_limit - 1 < charge_current < pressent_current_limit + 1:
+				current = int(pressent_current_limit)
 				print(f"Power constraints OK, charge current: {current} A", end=" ")
 			else:
 				set_Garo_current(int(charge_current))
 			return True
-		
+		else:
+			# Not OK to charge
+			# Adjust the current value
+			charge_current = 0
+			print(f"Power constraints not OK, charge current: {charge_current} A", end=" ")
+			# if pressent_current != charge_current:
+			# 	set_Garo_current(charge_current)
+			return False
+
+	
 	else:
 		# Not OK to charge
 		# Adjust the current value
@@ -455,52 +439,25 @@ def power_constraints(charging_type='auto', garo_status=None):
 		return False
 
 def get_power_data(retries=3, delay=2):
-    path = 'data/energy_status.json'
-    for attempt in range(retries):
-        try:
-            if os.path.getsize(path) < 10:
-                raise ValueError("File too small to be valid JSON")
+	path = 'data/energy_status.json'
+	for attempt in range(retries):
+		try:
+			if os.path.getsize(path) < 10:
+				raise ValueError("File too small to be valid JSON")
 
-            with open(path, 'r') as file:
-                portalocker.lock(file, portalocker.LOCK_SH)
-                data = json.load(file)
-                portalocker.unlock(file)
-                return data
-        except (json.JSONDecodeError, ValueError, OSError) as e:
-            print(f"Attempt {attempt + 1} failed: {e}")
-            time.sleep(delay)
+			with open(path, 'r') as file:
+				portalocker.lock(file, portalocker.LOCK_SH)
+				data = json.load(file)
+				portalocker.unlock(file)
+				return data
+		except (json.JSONDecodeError, ValueError, OSError) as e:
+			print(f"Attempt {attempt + 1} failed: {e}")
+			time.sleep(delay)
 
-    raise RuntimeError("Failed to read power data after multiple attempts")
-
-
-def get_power_data(retries=3, delay=2):
-    path = 'data/energy_status.json'
-    for attempt in range(retries):
-        try:
-            if os.path.getsize(path) < 10:
-                raise ValueError("File too small to be valid JSON")
-
-            with open(path, 'r') as file:
-                portalocker.lock(file, portalocker.LOCK_SH)
-                data = json.load(file)
-                portalocker.unlock(file)
-                return data
-        except (json.JSONDecodeError, ValueError, OSError) as e:
-            print(f"Attempt {attempt + 1} failed: {e}")
-            time.sleep(delay)
-
-    raise RuntimeError("Failed to read power data after multiple attempts")
+	raise RuntimeError("Failed to read power data after multiple attempts")
 
 
-
-def get_log():
-	try:
-		log = pd.read_csv('data/log.csv')
-		return log
-	except FileNotFoundError:
-		return None
-
-def get_button_state():
+def get_button_state(do_print=True):
 	"""
 		This function gets the state of the button from the server
 			
@@ -511,12 +468,14 @@ def get_button_state():
 		response = requests.get(server_url + '/get_status', timeout=20)
 		if response.status_code ==  200:
 			data = response.json()
+
 			new_data = {}
 			new_data['hours'] = data['hours']
 			new_data['set_time'] = data['set_time']
 			new_data['fas_value'] = data['fas_value']
 			new_data['kwh_per_week'] = data['kwh_per_week']
 			new_data['status'] = data['status']
+			new_data['max_power'] = data['max_power']
 
 			# print("Web respons:", end=" ")
 			# print("Web respons:", end=" ")
@@ -525,16 +484,17 @@ def get_button_state():
 				return None
 			elif data['auto'] == 1:
 				new_data['charge_type'] = 'auto'
-			elif data['on'] == 1:
-				new_data['charge_type'] = 'on'
+			elif data['manual'] == 1:
+				new_data['charge_type'] = 'manual'
 			elif data['fast_smart'] == 1:
 				new_data['charge_type'] = 'fast_smart'	
 			else:
 				new_data['charge_type'] = 'off'
-
-			print(f"Charge type: {new_data['charge_type']}", end=" ")	
-			print(f"Hours: {new_data['hours']}", end=" ")			
-					
+			if do_print:
+				print(f"Web status: {new_data['charge_type']}", end="")	
+				if new_data['charge_type'] == 'fast_smart':
+					print(f" {new_data['hours']} h in {new_data['set_time']}", end="")			
+				print(";", end=" ")		
 			return new_data
 
 		else:
@@ -543,34 +503,62 @@ def get_button_state():
 	except requests.exceptions.RequestException as e:
 			print("An error occured: ", e, end=" ")
 			return None
-	
 
+def set_button_state(state, current_server_state=None):
+	"""
+	Set the charge mode on the server safely without overwriting unrelated fields.
 
-def set_button_state(state):
+	Args:
+	state (dict): e.g., {'charge_type': 'auto', 'hours': 5, 'set_time': 12, ...}
+	current_server_state (dict, optional): current server state
+
+	Returns:
+	HTTP status code or None if failed
 	"""
-		This function sets the state of the button on the server
-			
-			Arguments: state
-			
-			Returns: response
-	"""
-	if state == {'charge_type': 'auto'}:
-		state = {'auto': 1, 'fast_smart': 0, 'on': 0}
-	elif state == {'charge_type': 'fast_smart'}:
-		state = {'auto': 0, 'fast_smart': 1, 'on': 0}
-	elif state == {'charge_type': 'on'}:
-		state = {'auto': 0, 'fast_smart': 0, 'on': 1}
-	elif state == {'charge_type': 'off'}:
-		state = {'auto': 0, 'fast_smart': 0, 'on': 0}
+	mode_map = {
+	'auto': {'auto': 1, 'fast_smart': 0, 'manual': 0},
+	'fast_smart': {'auto': 0, 'fast_smart': 1, 'manual': 0},
+	'manual': {'auto': 0, 'fast_smart': 0, 'manual': 1},
+	'off': {'auto': 0, 'fast_smart': 0, 'manual': 0}
+	}
+
+	if 'charge_type' not in state:
+		new_state = {}
+	else:
+		# Only update the mode flags
+		new_state = mode_map.get(state['charge_type']).copy()
+
+	# Include optional user-configurable fields
+	for key in ['hours', 'set_time', 'fas_value', 'kwh_per_week', 'status']:
+		if key in state:
+			new_state[key] = state[key]
+
+	# Auto-fetch current server state if not provided
+	if current_server_state is None:
+		server_data = get_button_state(do_print=False)
+	if server_data:
+		current_server_state = {}
+	# Only compare the keys we are going to update
+	for key in new_state.keys():
+		current_server_state[key] = server_data.get(key)
+
+	# Only send update if something actually changed
+	if current_server_state and current_server_state == new_state:
+		pass
+		return 200
 
 	try:
-		response = requests.post(server_url + '/set_state', json=state).status_code
-		if response != 200:
+		response = requests.post(server_url + '/set_state', json=new_state).status_code
+		if response == 200:
+			pass
+		else:
 			print("Could not update state on server!", end=" ")
 		return response
-	except:
-		print("Not able to contact server!", end=" ")
-		return None
+	except Exception as e:
+		print(f"Not able to contact server! {e}", end=" ")
+	return None
+
+
 
 def send_image_to_server(image_path, verbose=False):
 	try:
@@ -609,37 +597,66 @@ def get_now(*args, verbose=True):
 	utc_offset = timezone.localize(now).utcoffset().seconds/3600
 	return now, utc_offset
 
-
-def lowTemp():
+class Temp():
 	"""
-		This function get the temperture from a local device if any. 
-		If the temperture is below -18 it returns True
-		If the temperture is above -18 or the device is not available it returns False
+	Utility class for periodically retrieving and evaluating a temperature
+	from a local web endpoint.
+
+	The class stores the last time a temperature was fetched and only updates
+	the value after `time_laps` seconds have passed. The `lowTemp()` method
+	checks whether the temperature is below -18°C, returning True if so,
+	and False if the temperature is higher or if the reading fails.
+
+	Attributes:
+		time_laps (int): Minimum number of seconds between temperature updates.
+		now (datetime): Timestamp of the last successful temperature check.
+		temp (float | None): Last retrieved temperature value.
+
+	Methods:
+		lowTemp():
+			Returns True if the temperature is below -18°C.
+			Returns False otherwise or if fetching temperature fails.
+
+		get_temp():
+			Attempts to retrieve the temperature from `low_temp_url`.
+			Returns a float if successful or None on error.
 	"""
 
+	def __init__(self, time_laps=120) -> None:
+		self.time_laps = time_laps
+		self.now, _ = get_now(verbose=False)
+		self.temp = 0
 
-	temp = get_temp()
+	def lowTemp(self):
+		"""
+			This function get the temperture from a local device if any. 
+			If the temperture is below -18 it returns True
+			If the temperture is above -18 or the device is not available it returns False
+		"""
+		now, _ = get_now(verbose=False)
+		if (now - self.now).total_seconds() > self.time_laps:
+			self.temp = self.get_temp()
 
-	if temp == None:
-		return False
-	
-	if temp < -18:
-		return True
-	else:
-		return False
+		if self.temp == None:
+			return False
+		
+		if self.temp < -18:
+			return True
+		else:
+			return False
 
 
-def get_temp():
-	try:
-		url = low_temp_url
-		page = requests.get(url=url, timeout=20)
-		soup = BeautifulSoup(page.content, "html.parser")
-		data = soup.find_all("p")[0].text
-		temp = data.split(' ')[1]
-		temp = float(temp)
-		return temp
-	except:
-		return None
+	def get_temp(self):
+		try:
+			url = low_temp_url
+			page = requests.get(url=url, timeout=20)
+			soup = BeautifulSoup(page.content, "html.parser")
+			data = soup.find_all("p")[0].text
+			temp = data.split(' ')[1]
+			temp = float(temp)
+			return temp
+		except:
+			return None
 
 
 def create_data_file():
@@ -662,78 +679,71 @@ def create_data_file():
 
 	return data
 
-def connected_to_lan(test=False):
-	# initializing URL
-	url = router_url
-	timeout = 10
-
-	if test:
-		return True
-
-	try:
-			# requesting URL
-			request = requests.get(url,
-														timeout=timeout)
-			return True
-	
-	# catching exception
-	except (requests.ConnectionError,
-					requests.Timeout) as exception:
-			print("Internet is off", end=' ')
-			return False
-
-def next_datetime(current: datetime.datetime, hour: int, **kwargs):
-    repl = current.replace(hour=hour, **kwargs)
-    while repl <= current:
-        repl = repl + datetime.timedelta(days=1)
-    return repl
-
 def save_log(data, now, connected, available, response):
 	"""
-	This function saves the log data to a file
+	Save a log entry to CSV. Handles both normal operation and exceptions.
+
 	Arguments:
-	data: data used in main function to keep track of current status
-	now: current time
-	connected: status from GARO
-	available: status from GARO
-	response: status from the server, what user has selected
+	- data: dict containing current state or error info
+	- now: current datetime
+	- connected: GARO connection status
+	- available: GARO availability status
+	- response: dict from server / user response
 	"""
 	max_lines = 1000
+	log_path = 'data/log.csv'
+	tmp_path = 'data/log_tmp.csv'
+	os.makedirs(os.path.dirname(log_path), exist_ok=True)
 
+	# Determine log type
+	log_type = "ERROR" if "error" in data else "NORMAL"
 
-	data_dict = {
-	"Time": now,
-	"G Connected": connected,
-	"G Available": available,
-	"R Charge type": response['charge_type'] if response != None else "None",
-	"R Set time": response['set_time'] if response != None else "None",
-	"R Fas value": response['fas_value'] if response != None else "None",
-	"R kwh per week": response['kwh_per_week'] if response != None else "None",
-	"R Hours": response['hours'] if response != None else "None",
-	"D New down load": data['new_down_load'],
-	"D Charge type": data['charge_type'],
-	"D Charge": data['charge'],
-	"D Charging": data['charging'],
-	"D Connected": data['connected'],
-	"D Hours": data['hours'],
-	"D Available": data['available'],
-	"D Set time": data['set_time'],
-	"D Fas value": data['fas_value'],
-	"D kwh per week": data['kwh_per_week'],
-	"D Schedule": "No" if data['schedule'].empty else "YES",
-	"D Nordpool data": "No" if data['nordpool'].empty or data['nordpool'].iloc[-1]['TimeStamp'] < now else "YES"
-	}
+	try:
+		# Build the log row safely
+		data_dict = {
+			"Time": now,
+			"Type": log_type,
+			"G Connected": connected,
+			"G Available": available,
+			"R Charge type": response.get('charge_type', "None") if response else "None",
+			"R Set time": response.get('set_time', "None") if response else "None",
+			"R Fas value": response.get('fas_value', "None") if response else "None",
+			"R kwh per week": response.get('kwh_per_week', "None") if response else "None",
+			"R Hours": response.get('hours', "None") if response else "None",
+			"D New down load": data.get('new_down_load', "None"),
+			"D Charge type": data.get('charge_type', "None"),
+			"D Charge": data.get('charge', "None"),
+			"D Charging": data.get('charging', "None"),
+			"D Connected": data.get('connected', "None"),
+			"D Hours": data.get('hours', "None"),
+			"D Available": data.get('available', "None"),
+			"D Set time": data.get('set_time', "None"),
+			"D Fas value": data.get('fas_value', "None"),
+			"D kwh per week": data.get('kwh_per_week', "None"),
+			"D Schedule": "No" if data.get('schedule', pd.DataFrame()).empty else "YES",
+			"D Nordpool data": "No" if data.get('nordpool', pd.DataFrame()).empty else "YES",
+			"Error": data.get('error', ""),
+			"Trace": data.get('trace', "")
+		}
+	except Exception as log_e:
+		print(f"⚠️ Failed to prepare log dict: {log_e}")
+		return
 
 	data_df = pd.DataFrame([data_dict])
 
 	try:
-		log = pd.read_csv('data/log.csv')
-		log = pd.concat([log, data_df], ignore_index=True)
-		if len(log) > max_lines:
-			log = log.iloc[-max_lines:]
-		log.to_csv('data/log.csv', index=False)
-	except FileNotFoundError:
-		data_df.to_csv('data/log.csv', index=False)
+		if os.path.exists(log_path):
+			log = pd.read_csv(log_path)
+			log = pd.concat([log, data_df], ignore_index=True)
+			if len(log) > max_lines:
+				log = log.iloc[-max_lines:]
+		else:
+			log = data_df
+		# Atomic write
+		log.to_csv(tmp_path, index=False)
+		os.replace(tmp_path, log_path)
+	except Exception as file_e:
+		print(f"Failed to save log CSV: {file_e}")
 
 def if_download_nordpool_data(data, now, test=False):
 	""""
@@ -771,26 +781,43 @@ def if_download_nordpool_data(data, now, test=False):
 
 def if_status_quo(data, response, connected):
 	"""
-	This function checks if response and data are the same as last time.
-	It also checks that the connection state have not gone from not connected
-	to connected (connected or the similarities) 
-	"""	
+	Checks if response and data are the same as last time.
+	Ignores transitions while the charger is in active states.
+	"""
 
-	return response['charge_type'] == data['charge_type'] and \
-				response['hours'] == data['hours'] and \
-				response['set_time'] == data['set_time'] and \
-				response['fas_value'] == data['fas_value'] and \
-				response['kwh_per_week'] == data['kwh_per_week'] and \
-				 not (connected != "NOT_CONNECTED" and data['connected'] == "NOT_CONNECTED")
+	same_settings = (
+			response['charge_type'] == data['charge_type'] and
+			response['hours'] == data['hours'] and
+			response['set_time'] == data['set_time'] and
+			response['fas_value'] == data['fas_value'] and
+			response['kwh_per_week'] == data['kwh_per_week']
+	)
+
+	# Only rebuild if user settings changed or if we went from NOT_CONNECTED to CONNECTED
+	if not same_settings:
+			return False
+
+	# Ignore changes while charging or paused
+	if data['connected'] != 'CHARGING' and connected in (
+			'CHARGING', 'DISABLED', 'CHARGING_PAUSED', 'CHARGING_FINISHED'
+	):
+			return True
+
+	# Otherwise, allow schedule rebuild when going from NOT_CONNECTED → CONNECTED
+	if data['connected'] == 'NOT_CONNECTED' and connected != 'NOT_CONNECTED':
+			return False
+
+	return True
+
 
 def update_charge_schedule(data, response, now):
 	if response['charge_type'] != 'off':
 		schedule= get_chargeSchedule(hour_to_charged=response['hours'], 
-																	nordpool_data=data['nordpool'], 
-																	now=now, 
-																	set_time=response['set_time'],
-																	pattern=response['charge_type'],
-																	charge_fraction=get_charge_fraction( response['fas_value'], response['kwh_per_week']))
+									nordpool_data=data['nordpool'], 
+									now=now, 
+									set_time=response['set_time'],
+									pattern=response['charge_type'],
+									charge_fraction=get_charge_fraction( response['fas_value'], response['kwh_per_week']))
 		data['schedule'] = schedule
 		print(f"Charge schedule: {len(data['schedule'])} h", end=" ")
 	elif response['charge_type'] == 'off':
@@ -799,6 +826,67 @@ def update_charge_schedule(data, response, now):
 
 	return data	
 
+###################  Not used functions  ###################3
+# def plot_data_schedule(charge_schedule, nordpool_data, now, save_uniqe_plots=False):
+# 	try:	
+# 		sub_nordpool_data = nordpool_data[nordpool_data['TimeStamp'] > now - datetime.timedelta(hours=24)] 
+# 		hh = DateFormatter('%H')
+# 		x1 = sub_nordpool_data['TimeStamp'].values
+# 		y1 = sub_nordpool_data['value'].values
+# 		fig, ax = plt.subplots()
+# 		ax.xaxis.set_major_formatter(hh)
+# 		ax.scatter(x1, y1 , color='blue')
+# 		if not charge_schedule.empty:
+# 			x2 = charge_schedule['TimeStamp'].values
+# 			y2 = charge_schedule['value'].values
+# 			ax.scatter(x2, y2, color='green')
+# 		ax.set_title(f'Schedule')
+# 		ax.set_ylim(min(y1)- 0.2, max(y1) + 0.2)
+# 		vertical_line = datetime.datetime.now()
+# 		ax.axvline(x=vertical_line, color='red')
+# 		#TODO remove saving of all schedules after testing
+# 		if save_uniqe_plots:
+# 			plot_path = f'data/plots/plot_{now.year}-{now.month}-{now.day}_{now.hour}:{now.minute}.png'
+# 			fig.savefig(plot_path)
+# 		fig.savefig('static/image.png')
+# 		plt.close(fig)
+# 		send_image_to_server('static/image.png')
+# 	except Exception as e:
+# 		print(f"Could not plot schedule: {e}", end=" ")
+
+
+# def get_log():
+# 	try:
+# 		log = pd.read_csv('data/log.csv')
+# 		return log
+# 	except FileNotFoundError:
+# 		return None
+
+# def connected_to_lan(test=False):
+# 	# initializing URL
+# 	url = router_url
+# 	timeout = 10
+
+# 	if test:
+# 		return True
+
+# 	try:
+# 			# requesting URL
+# 			request = requests.get(url,
+# 														timeout=timeout)
+# 			return True
+	
+# 	# catching exception
+# 	except (requests.ConnectionError,
+# 					requests.Timeout) as exception:
+# 			print("Internet is off", end=' ')
+# 			return False
+
+# def next_datetime(current: datetime.datetime, hour: int, **kwargs):
+#     repl = current.replace(hour=hour, **kwargs)
+#     while repl <= current:
+#         repl = repl + datetime.timedelta(days=1)
+#     return repl
 	
 
 if __name__ == '__main__':
@@ -807,18 +895,6 @@ if __name__ == '__main__':
 	print(f"Now: {now}", end=' ')
 	one_hour = datetime.timedelta(hours=1)
 	
-	# # scp -r pi@192.168.1.70:~/Projects/Wallbox/data .
-	# with open('data/saved_data.pkl', 'rb') as f:
-	# 	file_content = f.read()
-	# data = pickle.loads(file_content)
-	# # data['nordpool'] = getSpotPrice(now=now, prev_data=data['nordpool'])
-	# # with open('data/saved_data.pkl', 'wb') as f:
-	# # 		pickle.dump(data,f)
-	# # with open('data/saved_data.txt', 'w') as f:
-	# # 		f.write(str(data))
-	# schedule, value_lim = get_auto_charge_schedule(nordpool_data=data['nordpool'], now=now, fraction=0.3)
-	# plot_data_schedule(schedule, nordpool_data=data['nordpool'], now=now, save_uniqe_plots=True)
-	# print(schedule)
 	response = get_Garo_status()
 	print(response)
 
