@@ -2,7 +2,7 @@ import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from GARO.garo import get_current_consumtion
+from GARO.garo import get_current_consumption
 from SpotPrice.spotprice import get_current_price, get_nordpool_data
 from CONFIG.config import low_price, energy_price, power_price
 import time
@@ -245,6 +245,8 @@ class Energy:
         self.total_cost = self.status.get('total_cost', 0)
         self.cost_hour_list.update(self.status.get('cost_hour_list', []))
 
+        self.third_highest_power = self.power_month_list.third_highest
+
     except (FileNotFoundError, KeyError, json.JSONDecodeError):
         # Default values if loading fails
         self.voltage = 230
@@ -265,10 +267,14 @@ class Energy:
     This function calculates the seconds in the current month
     """
     if isinstance(now, list):
-      now = pd.to_datetime(now[-1])
-    next_month = now.replace(month=now.month % 12 + 1, day=1, hour=0, minute=0, second=0)
-    seconds_this_month = (next_month - now.replace(day=1, hour=0, minute=0, second=0)).total_seconds()
-    return seconds_this_month
+        now = pd.to_datetime(now[-1])
+    now = pd.Timestamp(now)
+
+    start_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    start_of_next_month = start_of_month + pd.offsets.MonthEnd(1) + pd.Timedelta(days=1) - pd.Timedelta(seconds=0)
+    start_of_next_month = start_of_month + pd.offsets.MonthEnd(1) + pd.Timedelta(seconds=0)
+    
+    return (start_of_next_month - start_of_month).total_seconds()
   
   def acc_seconds_this_month(self, now):
     """
@@ -309,15 +315,18 @@ class Energy:
       energy_values = np.array(energy_list) / 1000 # Unit Wh -> kWh
       datetime_series = now
       power_values = np.array(power_list)
-      spot_price = get_current_price(now)['value'].values * energy_values * 3600 / time_delta  # Scale to get price over one hour
+      price = get_current_price(now)
+      spot_price = price * energy_values * 3600 / time_delta  # Scale to get price over one hour
       # Spot price is in öre/kWh
     else:
-      seconds_this_month = self.seconds_this_month(pd.to_datetime(now[-1]))
+      seconds_this_month = self.seconds_this_month(pd.to_datetime(now))
       energy_values = np.array(energy_list.values) / 1000  # Convert from Wh to kWh
       datetime_series = energy_list.datetime
       power_values = np.array(power_list.values)
-      spot_price = get_current_price(energy_list.datetime)['value'].values * energy_values  * 3600 / time_delta
-    #
+      price = get_current_price(energy_list.datetime)['value'].values
+      spot_price = price * energy_values  * 3600 / time_delta
+ 
+    
     additional_spot_price = energy_price['add_cost_per_kWh'] * energy_values * 3600 / time_delta  # Scale to get price over one hour
     fixed_energy_month_price = energy_price['fixed_cost_per_month'] * np.ones_like(energy_values) * 3600 / seconds_this_month
     moms = energy_price['moms'] * (additional_spot_price + fixed_energy_month_price + spot_price)  # Calculate the VAT on the total cost
@@ -331,7 +340,6 @@ class Energy:
     else:
        effektavgift = np.ones_like(power_values) * self.current_power_cost(now, distribution_type=distribution_type, time_delta=time_delta) # Calculate the current power cost
     cost = spot_price + additional_spot_price + fixed_energy_month_price + moms + fixed_power_month_price + transfer_fee + taxes + effektavgift
-
     return cost, datetime_series
 
   def current_power_cost(self, now, distribution_type, time_delta):
@@ -432,11 +440,12 @@ class Energy:
     if self.test: 
        print("Test mode") 
     now, utc_off = get_now()
-    current = get_current_consumtion(self.test)
-    if current == None:
+    current = get_current_consumption(self.test)
+    if current is None:
       return None
     power = self.get_power(current)
-    energy = self.get_energy_consumtion(power, elapsed_time)
+    power_sum = power['1']+ power['2']+ power['3']
+    energy = self.get_energy_consumption(power, elapsed_time)
 
     # New hour
     if self.current_hour != now.hour:
@@ -451,8 +460,8 @@ class Energy:
       # Update power with timestamp
       one_hour_ago = now - one_hour
       one_hour_ago = one_hour_ago.replace(minute=0, second=0, microsecond=0)
-      old_3rd_highest_power_mean = self.power_month_list.mean_3rd_highest
       self.power_month_list.add([str(one_hour_ago), self.power_current_hour_mean])
+      self.third_highest_power = self.power_month_list.third_highest
 
 
       # Update energy
@@ -495,17 +504,17 @@ class Energy:
     self.energy_hour_list.add([str(now), self.energy_acc_hour])
 
     # Power
-    self.power_current_hour_list.add([str(now), (power['1']+ power['2']+ power['3'])])
+    self.power_current_hour_list.add([str(now), (power_sum)])
     self.power_current_hour_mean = self.power_current_hour_list.mean
-    self.third_highest_power = self.power_month_list.third_highest
+
 
     # Cost
     cost, timestamp = self.calculate_cost(energy_list=energy, 
-                                          power_list=power['1']+ power['2']+ power['3'], 
+                                          power_list=power_sum, 
                                           now=now, 
                                           time_delta=3600,
                                           distribution_type=self.distribution_type)
-    cost = cost[0] #TODO Fix this should it rally come as an array?
+
     self.cost_hour_list.add([str(now), cost])
 
     # Update thingspeak
@@ -513,7 +522,7 @@ class Energy:
       self.ch.update({1: power['1'], 2: power['2'], 3: power['3'], 4: self.power_current_hour_mean , 5: self.third_highest_power})
 
     # Print status
-    print(f"Power: {float(power['1']+ power['2']+ power['3']):>7.1f} W, Mean power: {self.power_current_hour_mean.item():>7.1f} W, Third highest power: {self.third_highest_power:>7.1f} W, Current cost {cost:>7.3} öre/h", end=" ")
+    print(f"Power: {float(power_sum):>7.1f} W, Mean power: {self.power_current_hour_mean.item():>7.1f} W, Third highest power: {self.third_highest_power:>7.1f} W, Current cost {cost:>7.3} öre/h", end=" ")
     # Save status to file
     self.save_status_dict_to_file()
       
@@ -591,8 +600,7 @@ class Energy:
     else:
       return None
       
-  def get_energy_consumtion(self, power, elapsed_time=None):
-
+  def get_energy_consumption(self, power, elapsed_time=None):
 
     print(f"Time: {elapsed_time:>5.0f} s", end=" ")
     

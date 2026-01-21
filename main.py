@@ -84,7 +84,7 @@ while True:
 	try:
 		now, utc_offset = cc.get_now()	
 
-		if (now - garo_time).total_seconds() > 60:
+		if (now - garo_time).total_seconds() > 30:
 			print('Garo updated, ', end='')
 			garo.update_Garo_state()
 			garo_time = now
@@ -122,7 +122,7 @@ while True:
 		# connected: "NOT_CONNECTED", "CONNECTED", "DISABLED", 'CHARGING_PAUSED', 'CHARGING_FINISHED', 'CHARGING':
 		# available: "ALWAYS_OFF", "ALWAYS_ON", "SCHEMA":
 
-		if (connected != "NOT_CONNECTED") and (connected != "CHARGING_FINISHED"):
+		if (connected != "NOT_CONNECTED"): # and (connected != "CHARGING_FINISHED"):
 
 
 			# If no response
@@ -202,49 +202,26 @@ while True:
 				charge = True
 				data['charge'] = charge
 
-		################### WHEN CAR STOPPED CHARGING ###################
-		#	TODO remove this after test if possible																														  #
-		#################################################################
-		elif connected == "CHARGING_FINISHED":
-			print("Charging finished!", end=" ")
-			charge = False
-			schedule = pd.DataFrame()
-
-			print("Default auto!", end=" ")
-			data['charge_type'] = 'auto'
-
-			# Update webstate
-			_  = cc.set_button_state({'charge_type':'auto'})
-
-			data['schedule'] = schedule
-			data['charge'] = charge
-
 
 		###################   WHEN CAR IS DISSCONNECTED   ###################
 		#										or charging finished by car
 		#####################################################################
-		elif connected == "NOT_CONNECTED"  and data['connected'] != "NOT_CONNECTED" :
+		# Handle cases where car stops charging or is disconnected
+		if connected in ("NOT_CONNECTED", "CHARGING_FINISHED"):
+				# Only reset if not already in auto or charge still True
+				if data.get('charge_type') != 'auto' or data.get('charge', True):
+						if connected == "NOT_CONNECTED":
+								print("Car disconnected. Resetting to default auto state.", end=" ")
+						else:  # CHARGING_FINISHED
+								print("Car finished charging. Resetting to default auto state.", end=" ")
 
-			charge = False
-			schedule = pd.DataFrame()
+						charge = False
+						schedule = pd.DataFrame()
+						data['charge_type'] = 'auto'
+						_ = cc.set_button_state({'charge_type': 'auto'})
+						data['schedule'] = schedule
+						data['charge'] = charge
 
-			print("Car dissconnected. Default auto!", end=" ")
-			data['charge_type'] = 'auto'
-
-			# Update webstate
-			_  = cc.set_button_state({'charge_type': 'auto'})
-
-			data['schedule'] = schedule
-			data['charge'] = charge
-
-		elif connected == "NOT_CONNECTED" and data['connected'] == "NOT_CONNECTED":
-			if available == "ALWAYS_ON":
-				charge = False
-				schedule = pd.DataFrame()
-				data['schedule'] = schedule
-				data['charge'] = charge
-				# Update webstate
-				_  = cc.set_button_state({'charge_type': 'auto'})
 
 		###################   UPDATE CHARGE STATUS   ########################
 		#																																		#
@@ -256,10 +233,10 @@ while True:
 			do_charge = data['charge']
 
 		charging, connected, available = cc.changeChargeStatusGaro(charging=data['charging'],
-																													charge=do_charge,
-																													connected=connected,
-																													available=available,
-																													test=test,)
+																charge=do_charge,
+																connected=connected,
+																available=available,
+																test=test,)
 		data['charging'] = charging
 
 		###################  IF SCHEDULE IS OUT OF DATE  ###################
@@ -270,18 +247,20 @@ while True:
 				schedule = pd.DataFrame()
 				data['schedule'] = schedule
 				# Set to auto
-				data['charge_type'] = 'auto'
+				data['charge_type'] = 'auto' 
 				data['charge'] = False
 				# Update webstate
 				_  = cc.set_button_state({'charge_type': 'auto'})
+				time.sleep(2)
+				response = cc.get_button_state()
+				data = cc.update_charge_schedule(data=data, response=response, now=now)
 		else:
-			schedule = pd.DataFrame()
-			data['schedule'] = schedule
-			# Save to auto
+
 			data['charge_type'] = 'auto'
 			data['charge'] = False
 			# Update webstate
 			_  = cc.set_button_state({'charge_type': 'auto'})
+
 
 		new_download = False   # After the first loop of new data it turns to old
 		data['new_down_load'] = new_download
@@ -336,3 +315,5 @@ while True:
 			cc.save_log({"error": str(e), "trace": traceback.format_exc()}, datetime.datetime.now(), None, None, None)
 			time.sleep(10)
 			continue
+
+

@@ -20,11 +20,12 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from matplotlib.dates import DateFormatter
 
-from GARO.garo import on_off_Garo, get_Garo_status, set_Garo_current, get_status, get_config
+from GARO.garo import on_off_Garo, get_Garo_status, set_Garo_current, get_status, get_config, get_meterinfo
 from CONFIG.config import low_temp_url, server_url, tz_region, router_url, low_price
 from SpotPrice.spotprice import getSpotPrice
 
 charge_current = 0
+charge_allowed = False
 
 
 def get_auto_charge_schedule(nordpool_data, now, fraction):
@@ -221,26 +222,28 @@ def plot_nordpool_data(nordpool_data, now, test=False):
 		print(f"Could not plot nordpool data: {e}", end=" ")
 
 def ifCharge(charge_schedule, now, time_delta=15):
-	"""
-		This function if current time (now) is within a schedule time delta (time_delta).
+    """
+    Check if current time (now) is within a schedule time delta (time_delta).
 
-		Arguments:
-			charge_schedule (dict/dataframe): Schedule with timestamps where it's OK to charge
-			now: The current timestamp
-			time_delta: How large each schedule step isinstance
+    Arguments:
+        charge_schedule (dict/dataframe): Schedule with timestamps where it's OK to charge
+        now: The current timestamp
+        time_delta: Time window in minutes
 
-		Returns:
-			Bolean: True or False		 
-	"""
-	charge_schedule = pd.DataFrame(charge_schedule)
+    Returns:
+        bool: True if within any scheduled time, else False
+    """
+    df = pd.DataFrame(charge_schedule)
+    
+    # Ensure 'TimeStamp' is datetime
+    df['TimeStamp'] = pd.to_datetime(df['TimeStamp'])
+    
+    # Compute difference in timedelta
+    delta = now - df['TimeStamp']
+    
+    # Check if any delta is within [0, time_delta) minutes
+    return ((delta >= pd.Timedelta(0)) & (delta < pd.Timedelta(minutes=time_delta))).any()
 
-	for row in charge_schedule['TimeStamp']:
-
-		t_stamp = row
-		if datetime.timedelta(hours=0) <= (now - t_stamp) < datetime.timedelta(minutes=time_delta):
-			return True
-
-	return False
 
 def get_charge_fraction(phases, kwh_per_week):
 	"""
@@ -284,7 +287,6 @@ def changeChargeStatusGaro(charging, charge, connected, available, test):
 			else:
 					print("Garo turned off!", end=" ")
 
-			connected, available = get_Garo_status()
 
 		elif available == "ALWAYS_ON" and charge:
 			#print("Garo already on!", end=" ")
@@ -305,7 +307,6 @@ def changeChargeStatusGaro(charging, charge, connected, available, test):
 			else:
 				print("Garo turned off!", end=" ")
 
-			connected, available = get_Garo_status()
 
 		elif available != "ALWAYS_ON" and charge:
 				turn_on_value = "1"
@@ -318,7 +319,7 @@ def changeChargeStatusGaro(charging, charge, connected, available, test):
 				else:
 						print("Garo turned on!", end=" ")
 
-				connected, available = get_Garo_status()
+		connected, available = get_Garo_status()
 
 	except Exception as e:
 			print(f"Error during GARO status change: {e}")
@@ -340,8 +341,10 @@ def power_constraints(response=None, garo_status=None):
 			True if the power consumtion is below the third highest value
 	"""
 	global charge_current
+	global charge_allowed
 	charging_type = response['charge_type']
 	max_power = response['max_power']
+	print(f"Max power: {max_power} kW", end=" ")
 	power_data = get_power_data()
 	
 	nr_phases = get_status('nrOfPhases')
@@ -384,12 +387,12 @@ def power_constraints(response=None, garo_status=None):
 
 	min_power = min_current * voltage * nr_phases
 
-	print(f"\n Current: mean power: {current_mean_power:.2f} kW", end=' ')
-	print(f"charging power: {current_charging_power:.2f} kW", end=' ')
-	print(f"household power: {house_power:.2f} kW", end=' ')
-	print(f"Possible power: {possible_power:.2f} kW", end=' ')
-	print(f"Third highest power: {third_highest_power:.2f} kW", end=' ')
-	print(f"Min power: {min_power:.2f} kW", end=' ')
+	print(f"\n CMP: {current_mean_power:>7.2f} kW", end=' ')
+	print(f"CCP: {current_charging_power:>7.2f} kW", end=' ')
+	print(f"HP: {house_power:>7.2f} kW", end=' ')
+	print(f"PP: {possible_power:>7.2f} kW", end=' ')
+	print(f"THP: {third_highest_power:>7.2f} kW", end=' ')
+	print(f"MP: {min_power:>7.2f} kW", end='\n ')
 
 
 	now, _ = get_now(verbose=False)
@@ -404,29 +407,35 @@ def power_constraints(response=None, garo_status=None):
 
 	possible_power = third_highest_power - house_power - 200 # To get some marginal
 
-	if (current_mean_power < third_highest_power ):
+	# Hysteresis thresholds based on third_highest_power
+	upper_threshold = third_highest_power + 100 # W
+	lower_threshold = third_highest_power - 200 # W
+
+	# Update charge_allowed based on hysteresis
+	if charge_allowed:
+		if current_mean_power > upper_threshold:
+			charge_allowed = False
+			print(f"Stopping charge: CMP {current_mean_power:.2f} kW > {upper_threshold:.2f} kW")
+	else:
+		if current_mean_power < lower_threshold:
+			charge_allowed = True
+			print(f"Resuming charge: CMP {current_mean_power:.2f} kW < {lower_threshold:.2f} kW")
+
+	if charge_allowed:
 
 		charge_current = int(possible_power / (voltage * nr_phases))
-		charge_current = min(charge_current, max_current)
+		charge_current = min(max(charge_current, min_current), max_current)
 
 		print(f"Charge power: {possible_power:.2f} kW, Charge current: {charge_current}", end=" ")
 
-		if charge_current >= min_current:
-		
-			if pressent_current_limit - 1 < charge_current < pressent_current_limit + 1:
-				current = int(pressent_current_limit)
-				print(f"Power constraints OK, charge current: {current} A", end=" ")
-			else:
-				set_Garo_current(int(charge_current))
-			return True
+		if pressent_current_limit - 1 < charge_current < pressent_current_limit + 1:
+			current = int(pressent_current_limit)
+			print(f"Power constraints OK, charge current: {current} A", end=" ")
 		else:
-			# Not OK to charge
-			# Adjust the current value
-			charge_current = 0
-			print(f"Power constraints not OK, charge current: {charge_current} A", end=" ")
-			# if pressent_current != charge_current:
-			# 	set_Garo_current(charge_current)
-			return False
+			set_Garo_current(int(charge_current))
+			print(f"Power constraints OK, charge current set to: {charge_current} A", end=" ")
+		return True
+
 
 	
 	else:
@@ -636,6 +645,7 @@ class Temp():
 		now, _ = get_now(verbose=False)
 		if (now - self.now).total_seconds() > self.time_laps:
 			self.temp = self.get_temp()
+			self.now = now
 
 		if self.temp == None:
 			return False
@@ -780,34 +790,31 @@ def if_download_nordpool_data(data, now, test=False):
 	return data	
 
 def if_status_quo(data, response, connected):
-	"""
-	Checks if response and data are the same as last time.
-	Ignores transitions while the charger is in active states.
-	"""
 
-	same_settings = (
-			response['charge_type'] == data['charge_type'] and
-			response['hours'] == data['hours'] and
-			response['set_time'] == data['set_time'] and
-			response['fas_value'] == data['fas_value'] and
-			response['kwh_per_week'] == data['kwh_per_week']
-	)
+    same_settings = (
+        response['charge_type'] == data['charge_type'] and
+        response['hours'] == data['hours'] and
+        response['set_time'] == data['set_time'] and
+        response['fas_value'] == data['fas_value'] and
+        response['kwh_per_week'] == data['kwh_per_week']
+    )
 
-	# Only rebuild if user settings changed or if we went from NOT_CONNECTED to CONNECTED
-	if not same_settings:
-			return False
+    if not same_settings:
+        return False
 
-	# Ignore changes while charging or paused
-	if data['connected'] != 'CHARGING' and connected in (
-			'CHARGING', 'DISABLED', 'CHARGING_PAUSED', 'CHARGING_FINISHED'
-	):
-			return True
+    # CASE 1 — NOT_CONNECTED → CONNECTED
+    if data['connected'] == 'NOT_CONNECTED' and connected != 'NOT_CONNECTED':
+        return False
 
-	# Otherwise, allow schedule rebuild when going from NOT_CONNECTED → CONNECTED
-	if data['connected'] == 'NOT_CONNECTED' and connected != 'NOT_CONNECTED':
-			return False
+    # CASE 2 — ignore changes while charging or paused
+    if data['connected'] != 'CHARGING' and connected in (
+        'CHARGING', 'DISABLED', 'CHARGING_PAUSED', 'CHARGING_FINISHED'
+    ):
+        return True
 
-	return True
+    # Default
+    return True
+
 
 
 def update_charge_schedule(data, response, now):

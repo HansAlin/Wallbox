@@ -1,98 +1,230 @@
 <!DOCTYPE html>
+
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Charger Control</title>
     <link rel="stylesheet" href="../static/style.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+
+    .container {
+        width: 100%;
+        padding: 10px;
+        box-sizing: border-box;
+    }
+
+    .status-header {
+        text-align: center;
+        margin-bottom: 20px;
+    }
+
+    .status-info p {
+        margin: 2px 0;
+        font-size: 0.9rem;
+    }
+
+    .max-power-control {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 5px;
+        margin-top: 5px;
+    }
+
+    .controls-container {
+        display: flex;
+        gap: 20px;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .control-section {
+        border: 1px solid #ccc;
+        padding: 10px;
+        min-width: 250px;
+        flex: 1 1 250px;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+    }
+
+    .form-column {
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        gap: 5px;
+        margin-top: 5px;
+    }
+
+    .align-right {
+        align-self: flex-end;
+    }
+
+    .input-number {
+        width: 70px;
+    }
+
+    .button {
+        padding: 4px 8px;
+        font-size: 0.9rem;
+    }
+
+    .image-container {
+        text-align: center;
+        margin-top: 20px;
+    }
+    .form-row {
+    display: flex;
+    flex-direction: column; /* label above the input/button row */
+    gap: 5px;
+    width: 100%;
+    margin-top: 5px;
+    }
+
+    .input-button-wrapper {
+        display: flex;
+        gap: 5px;
+        justify-content: center; /* input left, button right */
+        align-items: center;
+    }
+
+    .input-number {
+        width: 70px;
+    }
+
+    .button {
+        padding: 4px 8px;
+        font-size: 0.9rem;
+    }
+
+    .status-on {
+    color: green;
+    font-weight: bold;
+    }
+
+    .status-off {
+        color: red;
+        font-weight: bold;
+    }
+
+
+</style>
+```
+
 </head>
 <body>
-    <center>
-    <header>
+<div class="container">
+    <!-- Header / Overall Status -->
+    <header class="status-header">
         <h1>Charger Control</h1>
-        <h2>Charge status: {{ status }},  Charge power {{charging_power}} W,  Accumulated energy {{energy}} kWh
-            SOC: {{charge_status}} %
-        </h2>
-        <h2>    
-            Max power: 
-            <input type="number" id="max_power" name="max_power" value="{{max_power}}" class="input-number">
+        <div class="status-info">
+            <p>Status: {{ status }}</p>
+            <p>Charge power: {{ charging_power }} W</p>
+            <p>Accumulated energy: {{ energy }} kWh</p>
+            <!-- <p>SOC: {{ charge_status }} %</p> -->
+        </div>
+        <form action="/set_value" method="post" class="max-power-control">
+            <label for="max_power">Max power [W]:</label>
+            <input type="number"
+                   id="max_power"
+                   name="max_power"
+                   value="{{ max_power }}"
+                   class="input-number">
             <button type="submit" class="button">Set Max Power</button>
-
-        </h2>
-
+        </form>
+        
     </header>
 
+
+<!-- Control Sections Side by Side -->
+<div class="controls-container">
+    <!-- Auto Section -->
     <section class="control-section">
         <h3>Auto</h3>
-        {% if auto == 1 %}
-            <h2> ON </h2>
-            <a href="/auto/off" class="button">TURN OFF</a>
-        {% else %}
-            <h2> OFF </h2>
-            <a href="/auto/on" class="button">TURN ON</a>
-        {% endif %}
-
-        <form action="/set_value" method="post">
-            <h3>KWH per Week</h3>
-            <input type="number" id="kwh_per_week" name="kwh_per_week" value="{{ kwh_per_week }}" class="input-number">
-            <button type="submit" class="button">Submit</button>
+        <p>
+            Status: 
+            <strong class="{% if auto == 1 %}status-on{% else %}status-off{% endif %}">
+                {% if auto == 1 %}ON{% else %}OFF{% endif %}
+            </strong>
+        </p>
+        
+        <a href="/auto/{% if auto == 1 %}off{% else %}on{% endif %}" class="button">
+            TURN {% if auto == 1 %}OFF{% else %}ON{% endif %}
+        </a>
+        <form action="/set_value" method="post" class="form-row">
+            <label for="kwh_per_week">KWH per Week:</label>
+            <div class="input-button-wrapper">
+                <input type="number" id="kwh_per_week" name="kwh_per_week" value="{{ kwh_per_week }}" class="input-number">
+                <button type="submit" class="button">Submit</button>
+            </div>
         </form>
-
-        <!-- <form action="/set_value" method="post">
-            <h3>Current option</h3>
-            <select name="fas_value" id="fas_value", class="input-number">
-                <option value=3 {% if fas_value == 3 %}selected{% endif %}>FAS 3</option>
-                <option value=1 {% if fas_value == 1 %}selected{% endif %}>FAS 1</option>
-            </select>    
-            <button type="submit" class="button">Submit</button>
-        </form> -->
     </section>
 
+    <!-- Fast Smart Charge Section -->
     <section class="control-section">
         <h3>Fast Smart Charge</h3>
-        {% if fast_smart == 1 %}
-            <h2> ON </h2>
-            <a href="/fast_smart/off" class="button">TURN OFF</a>
-        {% else %}
-            <h2> OFF </h2>
-            <a href="/fast_smart/on" class="button">TURN ON</a>
-        {% endif %}
-
-        <form action="/set_value" method="post">
-            <label for="hours" class="input-head">Hours needed:</label>
-            <input type="text" id="hours" name="hours" value="{{ hours }}" class="input-number">
-            <button type="submit" class="button">Submit</button>
+        <p>
+            Status: 
+            <strong class="{% if fast_smart == 1 %}status-on{% else %}status-off{% endif %}">
+                {% if fast_smart == 1 %}ON{% else %}OFF{% endif %}
+            </strong>
+        </p>
+        <a href="/fast_smart/{% if fast_smart == 1 %}off{% else %}on{% endif %}" class="button">
+            TURN {% if fast_smart == 1 %}OFF{% else %}ON{% endif %}
+        </a>
+        <form action="/set_value" method="post" class="form-column">
+            <label for="hours">Hours needed:</label>
+            <div class="input-button-wrapper">
+                <input type="text" id="hours" name="hours" value="{{ hours }}" class="input-number">
+                <button type="submit" class="button">Submit</button>
+            </div>    
         </form>
 
-        <p>Charged within: {{ '%02d' % set_time|int }}:00 h</p> 
-        <form action="/set_value" method="post">
-            <label for="set_time" class="input-head">Change time:</label>
-            
-            <select id="set_time" name="set_time" class="input-number">
-                {% for i in range(24) %}
-                    <option value="{{ '%02d' % i }}:00" {% if i == set_time|int %}selected{% endif %}>
-                        {{ '%02d' % i }}:00
-                    </option>
-                {% endfor %}
-            </select>
-            
-            <button type="submit" class="button">Set Time</button>
+        <form action="/set_value" method="post" class="form-column">
+            <label for="set_time">Change time:</label>
+            <div class="input-button-wrapper">
+                <select id="set_time" name="set_time" class="input-number">
+                    {% for i in range(24) %}
+                        <option value="{{ '%02d' % i }}:00" {% if i == set_time|int %}selected{% endif %}>
+                            {{ '%02d' % i }}:00
+                        </option>
+                    {% endfor %}
+                </select>
+                <button type="submit" class="button">Set Time</button>
+            </div>
         </form>
+        <p>Charged within: {{ '%02d' % set_time|int }}:00 h</p>
     </section>
 
+    <!-- Manual Charge Section -->
     <section class="control-section">
         <h3>Charge Now</h3>
-        {% if manual == 1 %}
-            <h2> ON </h2>
-            <a href="/manual/off" class="button">TURN OFF</a>
-        {% else %}
-            <h2> OFF </h2>
-            <a href="/manual/on" class="button">TURN ON</a>
-        {% endif %}
+        <p>
+            Status: 
+            <strong class="{% if manual == 1 %}status-on{% else %}status-off{% endif %}">
+                {% if manual == 1 %}ON{% else %}OFF{% endif %}
+            </strong>
+        </p>
+        <a href="/manual/{% if manual == 1 %}off{% else %}on{% endif %}" class="button">
+            TURN {% if manual == 1 %}OFF{% else %}ON{% endif %}
+        </a>
     </section>
-    <div class="image-container">
-        <img src="/plot.png" alt="Power Month List Plot">
-    </div>
-    </center>
+</div>
+
+<!-- Plot Section -->
+<div class="image-container">
+    <img src="/plot.png" alt="Power Month List Plot">
+</div>
+```
+
+</div>
 </body>
 </html>

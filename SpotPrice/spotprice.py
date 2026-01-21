@@ -299,9 +299,11 @@ def get_current_price(now):
 		if isinstance(now, str):
 			now = pd.to_datetime(now)
 		log_nord_pool_data = get_nordpool_data(now)
+		log_nord_pool_data['TimeStamp'] = pd.to_datetime(log_nord_pool_data['TimeStamp'])
 		# Get the current price  
-		mask = (log_nord_pool_data['TimeStamp'] > (now - datetime.timedelta(hours=1))) & (log_nord_pool_data['TimeStamp'] < now)
-		value = log_nord_pool_data[mask]
+		mask = log_nord_pool_data['TimeStamp'] <= now
+		value = log_nord_pool_data[mask].iloc[-1].value
+
 
 	if isinstance(now, list):
 			# Convert all entries in now to datetime

@@ -145,7 +145,7 @@ def get_accumulated_energy():
 	return energy
 
 
-def get_current_consumtion(test=False):
+def get_current_consumption(test=False):
 	"""
 	This function check the power consumtion
 	Return: 
@@ -195,7 +195,7 @@ def on_off_Garo(value, timeout=10):
 
 	url = f"{url_garo}/servlet/rest/chargebox/mode/{value}"
 	data = {'mode': value}
-
+	time.sleep(60)
 	try:
 		response = requests.post(url, data=data, timeout=timeout)
 		response.raise_for_status()  # raises for HTTP errors (e.g., 404, 500)

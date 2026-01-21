@@ -40,7 +40,7 @@ DEFAULT_SETTINGS = {
 
 SETTINGS_FILE = 'web_data.txt'
 PICKLE_FILE = 'data/saved_data.pkl'
-UPDATE_INTERVAL = 20  # seconds
+UPDATE_INTERVAL = 5  # seconds
 data_lock = threading.Lock()
 plot_image = None
 last_data_hash = None
@@ -236,19 +236,19 @@ def get_status():
 
 @app.route('/set_value', methods=['POST'])
 def set_value():
-    for key in ['hours', 'fas_value', 'kwh_per_week', 'set_time', 'max_power']:
-        if key in request.form:
-            try:
-                if key == 'set_time':
-                    clean_time = request.form[key].split(":")[0]
-                    settings[key] = int(clean_time)
-                else:    
-                   settings[key] = int(request.form[key])
-            except ValueError:
-                settings[key] = DEFAULT_SETTINGS[key]
-
-    update_file(settings)
+    with settings_lock:
+        for key in ['hours', 'fas_value', 'kwh_per_week', 'set_time', 'max_power']:
+            if key in request.form:
+                try:
+                    if key == 'set_time':
+                        settings[key] = int(request.form[key].split(":")[0])
+                    else:
+                        settings[key] = int(request.form[key])
+                except ValueError:
+                    settings[key] = DEFAULT_SETTINGS[key]
+        update_file(settings)
     return redirect('/')
+
 
 @app.route('/update_settings', methods=['POST'])
 def update_settings():
