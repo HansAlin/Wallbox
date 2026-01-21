@@ -2,34 +2,38 @@
 
 # Path to the virtual environment
 VENV_PATH="/home/pi/Projects/Wallbox/env"
+PROJECT_DIR="/home/pi/Projects/Wallbox"
+LOG_DIR="$PROJECT_DIR/logs"
 
-# Function to check if a command is running in a tmux session
-check_and_run() {
-    local session_name=$1
-    local command=$2
+# Create logs folder if it doesn't exist
+mkdir -p "$LOG_DIR"
 
-    echo "Checking session: $session_name" >> /home/pi/Projects/Wallbox/log.txt
+# Function to run a Python script with auto-restart and logging
+run_script() {
+    local script_name=$1
+    local log_file="$LOG_DIR/${script_name%.py}.log"
 
-    # Check if the tmux session exists
-    tmux has-session -t "$session_name" 2>/dev/null
-    if [ $? != 0 ]; then
-        echo "Creating session: $session_name" >> /home/pi/Projects/Wallbox/log.txt
-        tmux new-session -d -s "$session_name" "source $VENV_PATH/bin/activate && $command"
-    else
-        echo "Session $session_name exists, checking command..." >> /home/pi/Projects/Wallbox/log.txt
-        tmux capture-pane -t "$session_name" -p | grep -q "$command"
-        if [ $? != 0 ]; then
-            echo "Command not running in session $session_name, sending keys..." >> /home/pi/Projects/Wallbox/log.txt
-            tmux send-keys -t "$session_name" "source $VENV_PATH/bin/activate && $command" C-m
-        fi
-    fi
+    echo "Starting $script_name..." >> "$log_file"
+
+    while true; do
+        # Activate virtualenv and run script
+        source "$VENV_PATH/bin/activate"
+        python "$PROJECT_DIR/$script_name" >> "$log_file" 2>&1
+
+        # Log crash and restart
+        echo "$(date '+%Y-%m-%d %H:%M:%S') - $script_name crashed, restarting in 5 seconds..." >> "$log_file"
+        sleep 5
+    done
 }
 
-# Check and run the Python scripts in their respective sessions
-check_and_run "power" "python /home/pi/Projects/Wallbox/energy_main.py"
-check_and_run "power_display" "python /home/pi/Projects/Wallbox/energy_display.py"
-check_and_run "server" "python /home/pi/Projects/Wallbox/server.py"
-check_and_run "main" "python /home/pi/Projects/Wallbox/main.py"
+# Start all scripts in background
+run_script "energy_main.py" &
+run_script "energy_display.py" &
+run_script "server.py" &
+run_script "main.py" &
 
-# Then keep the script running so systemd stays happy:
-tail -f /dev/null
+# Optional: log that all scripts were started
+echo "$(date '+%Y-%m-%d %H:%M:%S') - All scripts started" >> "$LOG_DIR/startup.log"
+
+# Keep script alive for systemd
+wait

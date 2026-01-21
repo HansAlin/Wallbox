@@ -5,6 +5,7 @@ lib/
 lib64
 share/
 test/
+logs/
 pyvenv.cfg
 config.py
 test_leafpy.py
