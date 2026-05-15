@@ -107,8 +107,8 @@ class PowerList:
 
     @property
     def mean(self):
-        return np.mean(self.values)
-    
+        return np.mean(self.values) if self.values else 0
+        
     @property
     def mean_3rd_highest(self):
         sorted_values = np.sort(self.values)
@@ -263,28 +263,36 @@ class Energy:
 
 
   def seconds_this_month(self, now):
-    """
-    This function calculates the seconds in the current month
-    """
-    if isinstance(now, list):
-        now = pd.to_datetime(now[-1])
-    now = pd.Timestamp(now)
+      dt = pd.to_datetime(now)
 
-    start_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    start_of_next_month = start_of_month + pd.offsets.MonthEnd(1) + pd.Timedelta(days=1) - pd.Timedelta(seconds=0)
-    start_of_next_month = start_of_month + pd.offsets.MonthEnd(1) + pd.Timedelta(seconds=0)
+      if isinstance(dt, pd.DatetimeIndex):
+          dt = dt[-1]
+      elif isinstance(dt, pd.Series):
+          dt = dt.iloc[-1]
+      elif isinstance(dt, np.ndarray):
+          dt = pd.to_datetime(dt[-1])
+
+      dt = pd.Timestamp(dt)
+
+      start_of_month = dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+      start_of_next_month = start_of_month + pd.DateOffset(months=1)
+
+      return (start_of_next_month - start_of_month).total_seconds()
     
-    return (start_of_next_month - start_of_month).total_seconds()
-  
   def acc_seconds_this_month(self, now):
-    """
-    This function calculates the accumulated seconds in the current month
-    """
-    if isinstance(now, list):
-      now = pd.to_datetime(now[-1])
-    first_day_of_month = now.replace(day=1, hour=0, minute=0, second=0)
-    seconds_this_month = (now - first_day_of_month).total_seconds()
-    return seconds_this_month
+      dt = pd.to_datetime(now)
+
+      if isinstance(dt, pd.DatetimeIndex):
+          dt = dt[-1]
+      elif isinstance(dt, pd.Series):
+          dt = dt.iloc[-1]
+      elif isinstance(dt, np.ndarray):
+          dt = pd.to_datetime(dt[-1])
+
+      dt = pd.Timestamp(dt)
+
+      first_day_of_month = dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+      return (dt - first_day_of_month).total_seconds()
 
   def seconds_in_timeseries(self, timeseries):
     """
@@ -440,7 +448,13 @@ class Energy:
     if self.test: 
        print("Test mode") 
     now, utc_off = get_now()
-    current = get_current_consumption(self.test)
+
+    try:
+      current = get_current_consumption(self.test)
+    except Exception as e:
+      print(f"GARO read failed: {e}", flush=True)
+      return None
+    
     if current is None:
       return None
     power = self.get_power(current)
@@ -471,17 +485,23 @@ class Energy:
  
       # Update cost
       nows = self.energy_month_list.datetime
-      cost_month_list, timestamp = self.calculate_cost(energy_list=self.energy_month_list, 
-                                                       power_list=self.power_month_list, 
-                                                       now=nows, 
-                                                       time_delta=seconds_since_last_hour, 
-                                                       distribution_type=self.distribution_type)
+      cost_month_list, timestamp = self.calculate_cost(
+          energy_list=self.energy_month_list,
+          power_list=self.power_month_list,
+          now=nows,
+          time_delta=3600,
+          distribution_type=self.distribution_type
+            )
+      
       self.cost_month_list.update_values(cost_month_list, timestamp)
       self.cost_hour_list.reset()
 
       # Update thingspeak
       if not self.test:
-        self.ch.update({6: self.energy_acc_hour, 7: get_current_price(now), 8:self.power_current_hour_mean})
+        try:
+          self.ch.update({1: power['1'], 2: power['2'], 3: power['3'], 4: self.power_current_hour_mean, 5: self.third_highest_power})
+        except Exception as e:
+          print(f"ThingSpeak update failed: {e}", flush=True)
 
       self.energy_acc_hour = 0
       self.power_current_hour_list.reset()
@@ -519,8 +539,11 @@ class Energy:
 
     # Update thingspeak
     if not self.test:
-      self.ch.update({1: power['1'], 2: power['2'], 3: power['3'], 4: self.power_current_hour_mean , 5: self.third_highest_power})
-
+      try:
+        self.ch.update({1: power['1'], 2: power['2'], 3: power['3'], 4: self.power_current_hour_mean , 5: self.third_highest_power})
+      except Exception as e:
+        print(f"ThingSpeak update failed: {e}", flush=True)
+        
     # Print status
     print(f"Power: {float(power_sum):>7.1f} W, Mean power: {self.power_current_hour_mean.item():>7.1f} W, Third highest power: {self.third_highest_power:>7.1f} W, Current cost {cost:>7.3} öre/h", end=" ")
     # Save status to file

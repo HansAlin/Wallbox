@@ -368,6 +368,7 @@ def power_constraints(response=None, garo_status=None):
 		currentChargingCurrent = currentChargingCurrent/1000
 	else: 
 		currentChargingCurrent = 0	
+	
 	house_power = current_mean_power - current_charging_power
 	possible_power = third_highest_power - house_power
 
@@ -395,15 +396,16 @@ def power_constraints(response=None, garo_status=None):
 	print(f"MP: {min_power:>7.2f} kW", end='\n ')
 
 
+	# Findout if it's lowprice hours regarding the power
 	now, _ = get_now(verbose=False)
 	hour = now.hour
 	low_price_time = False
 	if hour >= low_price['start'] or hour < low_price['stop']:
 		low_price_time = True
 
+	# Updates the limits
 	if low_price_time:
-		current_mean_power = current_mean_power / 2
-		min_power = min_power / 2
+		third_highest_power = third_highest_power * low_price['lowprice_factor']
 
 	possible_power = third_highest_power - house_power - 200 # To get some marginal
 

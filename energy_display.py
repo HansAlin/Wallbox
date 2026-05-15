@@ -63,11 +63,13 @@ def update_data_periodically():
 def index():
     power_current_mean = int(data_manager.data.get('power_current_mean', 0))
     third_highest_power = int(data_manager.data.get('third_highest_power', 0))
+
     return render_template_string('''
         <!DOCTYPE html>
         <html lang="en">
         <head>
             <meta charset="UTF-8">
+            <meta http-equiv="refresh" content="20">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>Power Status</title>
             <style>
@@ -106,90 +108,95 @@ def index():
             <div class="content">
                 <p>Power Current Mean: {{ power_current_mean }}</p>
                 <p>Third Highest Power: {{ third_highest_power }}</p>
-                <img src="/plot.png" alt="Power Month List Plot">
+                <img src="/plot.png?t={{ timestamp }}" alt="Power Month List Plot">
             </div>
         </body>
         </html>
-    ''', power_current_mean=power_current_mean, third_highest_power=third_highest_power)
+    ''', 
+    power_current_mean=power_current_mean, 
+    third_highest_power=third_highest_power,
+    timestamp=time.time())
+
 
 @app.route('/plot.png')
 def plot_png():
-
-    # Fontsize
     title_fontsize = 24
     label_fontsize = 20
 
-
-    # Unzip the data into datetime and power lists
-    datetime_list, power_list = zip(*data_manager.data.get('power_current_list', []))
-    
-    # Convert datetime strings to datetime objects
-    datetime_list = [datetime.strptime(datetime_str, '%Y-%m-%d %H:%M:%S.%f') for datetime_str in datetime_list]
-
-    mean_power = data_manager.data.get('power_current_mean', 0)
-
-    # Two plots in one figure
-    fig, axs = plt.subplots(4, 1, figsize=(16, 8))  # Increase figure size
+    fig, axs = plt.subplots(4, 1, figsize=(16, 10))
     axs = axs.flatten()
 
-    axs[0].plot(datetime_list, power_list, label='Current power')
-    axs[0].set_title('Hour', fontsize=title_fontsize)  # Increase title font size
-    axs[0].set_xlabel('Time', fontsize=label_fontsize)  # Increase x-axis label font size
-    axs[0].set_ylabel('Power', fontsize=label_fontsize)  # Increase y-axis label font size
-    # Horizontal lines for the third highest power
+    mean_power = data_manager.data.get('power_current_mean', 0)
     third_highest_power = data_manager.data.get('third_highest_power', 0)
-    axs[0].axhline(third_highest_power, color='red', linestyle='--', label='Third Highest Power')
-    axs[0].axhline(mean_power, color='green', linestyle='--', label='Mean Power')
-    axs[0].legend()
+
+    # Plot current power
+    power_current_list = data_manager.data.get('power_current_list', [])
+    if power_current_list:
+        datetime_list, power_list = zip(*power_current_list)
+        datetime_list = pd.to_datetime(datetime_list, format='ISO8601')
+
+        axs[0].plot(datetime_list, power_list, label='Current power')
+        axs[0].axhline(third_highest_power, color='red', linestyle='--', label='Third Highest Power')
+        axs[0].axhline(mean_power, color='green', linestyle='--', label='Mean Power')
+        axs[0].legend()
+
+    axs[0].set_title('Hour', fontsize=title_fontsize)
+    axs[0].set_xlabel('Time', fontsize=label_fontsize)
+    axs[0].set_ylabel('Power', fontsize=label_fontsize)
     axs[0].grid(True)
 
+    # Plot power month list
+    power_month_list = data_manager.data.get('power_month_list', [])
+    if power_month_list:
+        month_list, month_power_list = zip(*power_month_list)
+        month_list = pd.to_datetime(month_list, format='ISO8601')
 
-    # Plot month list is not empty
-    if data_manager.data.get('power_month_list'):
-        month_list, month_power_list = zip(*data_manager.data.get('power_month_list', []))
-        month_list = pd.to_datetime(month_list, format='ISO8601').tolist()
-        #month_list = [datetime.strptime(month_str, '%Y-%m-%d %H:%M:%S.%f') for month_str in month_list]
-        axs[1].bar(month_list, month_power_list, label='Month', width=0.03)
-        # Horizontal lines for the third highest power
+        axs[1].bar(month_list, month_power_list, label='Month Power', width=1/24)
         axs[1].axhline(third_highest_power, color='red', linestyle='--', label='Third Highest Power')
-        axs[1].set_title('Power Month List', fontsize=title_fontsize)
-        axs[1].set_xlabel('Time', fontsize=label_fontsize)
-        axs[1].set_ylabel('Power', fontsize=label_fontsize)
         axs[1].legend()
 
-    # Plot cost list
-        
-    datetime_list, cost_list = zip(*data_manager.data.get('cost_hour_list', []))
-    datetime_list = [datetime.strptime(datetime_str, '%Y-%m-%d %H:%M:%S.%f') for datetime_str in datetime_list]
-    axs[2].plot(datetime_list, cost_list, label='Cost')
-    axs[2].set_title('Cost', fontsize=title_fontsize)    
+    axs[1].set_title('Power Month List', fontsize=title_fontsize)
+    axs[1].set_xlabel('Time', fontsize=label_fontsize)
+    axs[1].set_ylabel('Power', fontsize=label_fontsize)
+    axs[1].grid(True)
+
+    # Plot cost hour list
+    cost_hour_list = data_manager.data.get('cost_hour_list', [])
+    if cost_hour_list:
+        datetime_list, cost_list = zip(*cost_hour_list)
+        datetime_list = pd.to_datetime(datetime_list, format='ISO8601')
+
+        axs[2].plot(datetime_list, cost_list, label='Cost')
+        axs[2].legend()
+
+    axs[2].set_title('Cost', fontsize=title_fontsize)
     axs[2].set_xlabel('Time', fontsize=label_fontsize)
     axs[2].set_ylabel('Cost', fontsize=label_fontsize)
-    axs[2].legend()
     axs[2].grid(True)
 
-    # Plot month cost list if not empty
-    if data_manager.data.get('cost_month_list'):
-        month_cost_list, month_cost_power_list = zip(*data_manager.data.get('cost_month_list', []))
-        month_cost_list = pd.to_datetime(month_cost_list, format='ISO8601').tolist()
-        #month_cost_list = [datetime.strptime(month_str, '%Y-%m-%d %H:%M:%S.%f') for month_str in month_cost_list]
-        axs[3].bar(month_cost_list, month_cost_power_list, label='Month', width=0.03)
+    # Plot cost month list
+    cost_month_list = data_manager.data.get('cost_month_list', [])
+    if cost_month_list:
+        month_cost_list, month_cost_power_list = zip(*cost_month_list)
+        month_cost_list = pd.to_datetime(month_cost_list, format='ISO8601')
+
+        axs[3].bar(month_cost_list, month_cost_power_list, label='Month Cost', width=1/24)
         axs[3].legend()
-        axs[3].set_title('Cost Month List', fontsize=title_fontsize)
-        axs[3].set_xlabel('Time', fontsize=label_fontsize)
-        axs[3].set_ylabel('Cost', fontsize=label_fontsize)
-        axs[3].grid(True)
-    # Set x-axis date format
-   
-    # Thight layout
+
+    axs[3].set_title('Cost Month List', fontsize=title_fontsize)
+    axs[3].set_xlabel('Time', fontsize=label_fontsize)
+    axs[3].set_ylabel('Cost', fontsize=label_fontsize)
+    axs[3].grid(True)
+
+    fig.autofmt_xdate()
     plt.tight_layout()
 
     img = io.BytesIO()
     plt.savefig(img, format='png')
+    plt.close(fig)
     img.seek(0)
+
     return send_file(img, mimetype='image/png')
-
-
 
 
 def get_local_ip():
@@ -207,4 +214,4 @@ def get_local_ip():
 if __name__ == '__main__':
     data_manager = DataManager()
     threading.Thread(target=update_data_periodically, daemon=True).start()
-    app.run(host='0.0.0.0', port=5001, debug=True)
+    app.run(host='0.0.0.0', port=5001, debug=False, use_reloader=False)

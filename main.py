@@ -222,9 +222,17 @@ while True:
 						data['schedule'] = schedule
 						data['charge'] = charge
 
+		# if connected is 'NOT_CONNECTED' and data.get('connected') != "NOT_CONNECTED":
+		# 	charge = False
+		# 	schedule = pd.DataFrame()
+		# 	data['charge_type'] = 'auto'
+		# 	_ = cc.set_button_state({'charge_type': 'auto'})
+		# 	data['schedule'] = schedule
+		# 	data['charge'] = charge
+
 
 		###################   UPDATE CHARGE STATUS   ########################
-		#																																		#
+		#																	#
 		#####################################################################
 		# Considering power constraints
 		if data['charge']:
@@ -240,7 +248,7 @@ while True:
 		data['charging'] = charging
 
 		###################  IF SCHEDULE IS OUT OF DATE  ###################
-		# If the schedule is out of date, delete it												 #
+		# If the schedule is out of date, delete it						    #
 		#####################################################################
 		if not data['schedule'].empty:
 			if datetime.timedelta(minutes=15) + data['schedule']['TimeStamp'].iloc[-1] < now:

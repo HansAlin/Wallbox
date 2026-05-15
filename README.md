@@ -1,55 +1,195 @@
 # Wallbox
+
 Wallbox is for anyone who has a GARO Wallbox (GLB Fixed cable Wifi) for charging their EV and that has prices on electric power from Nordpool.
 
-The code is currently running on a Raspberry Pi 5 8GB. 
+The code is currently running on a Raspberry Pi 5 8GB.
 
 ## Notes
-1. In the code, there is a function that reads the temperature from a device on my roof. The reason for that is the power should be available when it is low temperature. If you don't implement temperature reader the function just returns False, it is not low temperature.
-2. Remeber to set correct timezone espacially if you are using a Raspberry Pi. Like: sudo timedatectl set-timezone <Your_Time_Zone>
- 
 
-## Config file
-In order to make the program work you have to create a config.py file and store it in the same folder as main.py. The code in config.py should look like this:
+In the code, there is a function that reads the temperature from a device on my roof. The reason for that is the power should be available when it is low temperature. If you don't implement temperature reader the function just returns False, it is not low temperature.
 
-## Homepage Charger Control
+Remember to set correct timezone, especially if you are using a Raspberry Pi:
 
-# Auto
-
-The first option is to set the Wallbox to "Auto." This option will take the lowest value of future data and compare it to the lowest value in each time window of the same size as the number of future hours. It will then take the average value of these lowest values. If the lowest value from the future data is lower than the average value of the previous lowest hours, that time is added to the schedule.
-
-In other words, it checks whether the future lowest value is lower than the historical lowest value (with a history spanning a maximum of 4 days). The number of hours being checked is based on how many hours the car is needed per week. The hours needed per week determine a fraction that is used to decide how many hours the Wallbox should aim for each day.
-
-Under "KWH per Week," you determine the number of kWh needed during a 5-day cycle. 
-
-In the "Current" option, you choose the number of phases the car can take: either 1 or 3. If values are changed, you must press the "Submit" button.
-
-# Fast Smart Charge
-
-If turned on, the Wallbox will try to find "Hours needed" within "Charged within" hours. If values are changed, you must press the "Submit" button. When Fast Smart Charge ends, the system turns to Auto.
-
-# Now
-
-This option turns on charging for 16 hours and then switches to "Auto" afterward.
-
-
+```bash
+sudo timedatectl set-timezone <Your_Time_Zone>
 ```
 
-# GARO url
-url_garo = "http://192.168.1.81:8080" 
+## Config File
 
+Create a config.py file in the same folder as main.py. Example:
+
+```python
+# GARO url
+url_garo = "http://192.168.1.81:8080"
 
 # NordPool
 region = 'SE3'
 
-# url for the temperture device if any
+# URL for the temperature device (optional)
 low_temp_url = 'http://192.168.1.200'
 
-# url for the server. Start the server.py and then find the IP address:
+# URL for the server (start server.py first)
 server_url = 'http://192.168.1.141:5000'
 
-# url for the router if any
+# URL for the router (optional)
 router_url = "http://router.asus.com/Main_Login.asp"
 
 tz_region = 'Europe/Stockholm'
 ```
-Change it according to your preferences.
+
+Change these URLs according to your network and preferences.
+
+## Running the Scripts Automatically on Reboot (systemd + tmux)
+
+1. Make your script executable
+
+```bash
+chmod +x /home/pi/Projects/Wallbox/start_sessions.sh
+```
+
+2. Create systemd user service folder
+
+```bash
+mkdir -p ~/.config/systemd/user
+```
+
+3. Create the service file
+
+```bash
+nano ~/.config/systemd/user/energy_scripts.service
+```
+
+Paste this inside:
+
+```ini
+[Unit]
+Description=Start Energy Scripts in tmux
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/pi/Projects/Wallbox
+ExecStart=/home/pi/Projects/Wallbox/start_sessions.sh
+Restart=on-failure
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+Environment=VIRTUAL_ENV=/home/pi/Projects/Wallbox/env
+Environment=HOME=/home/pi
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=energy-scripts
+LogLevelMax=info
+
+[Install]
+WantedBy=default.target
+```
+
+4. Reload systemd and enable the service
+
+```bash
+systemctl --user daemon-reload
+systemctl --user enable energy_scripts.service
+systemctl --user start energy_scripts.service
+systemctl --user status energy_scripts.service
+```
+
+5. Enable lingering (optional, allows service to run without login)
+
+```bash
+sudo loginctl enable-linger pi
+```
+
+6. Reboot to test
+
+```bash
+sudo reboot
+```
+
+## Startup Script (start_sessions.sh)
+
+```bash
+#!/bin/bash
+
+# Paths
+VENV_PATH="/home/pi/Projects/Wallbox/env"
+PROJECT_DIR="/home/pi/Projects/Wallbox"
+LOG_DIR="$PROJECT_DIR/logs"
+
+# Create logs folder if it doesn't exist
+mkdir -p "$LOG_DIR"
+
+# Function to start a Python script in a loop with logging
+start_script() {
+    local script_name=$1
+    local log_file="$LOG_DIR/${script_name%.py}.log"  # log file named after script, without .py
+
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - Starting $script_name" >> "$log_file"
+
+    while true; do
+        cd "$PROJECT_DIR"
+        source "$VENV_PATH/bin/activate"
+        python "$script_name" >> "$log_file" 2>&1
+        echo "$(date '+%Y-%m-%d %H:%M:%S') - $script_name crashed, restarting in 5s..." >> "$log_file"
+        sleep 5
+    done
+}
+
+# Start all scripts in background
+start_script "energy_main.py" &
+start_script "energy_display.py" &
+start_script "server.py" &
+start_script "main.py" &
+
+# Optional: wait for all background jobs (not strictly needed for systemd)
+wait
+
+```
+
+## Viewing Logs
+
+Tail a single script log in real-time
+
+```bash
+tail -f ~/Projects/Wallbox/logs/main.log
+tail -f ~/Projects/Wallbox/logs/server.log
+tail -f ~/Projects/Wallbox/logs/energy_display.log
+tail -f ~/Projects/Wallbox/logs/energy_main.log
+tail -f ~/Projects/Wallbox/logs/startup.log
+```
+
+Tail all logs at once
+
+```bash
+tail -f ~/Projects/Wallbox/logs/*.log
+```
+
+Check systemd journal (optional)
+
+```bash
+journalctl --user -u energy_scripts.service -f
+```
+
+## Log Rotation (Keep 2–3 days)
+
+Create a logrotate configuration to prevent logs from filling the SD card:
+
+Create a file /etc/logrotate.d/wallbox with:
+
+```text
+/home/pi/Projects/Wallbox/logs/*.log {
+daily
+rotate 3
+missingok
+notifempty
+compress
+delaycompress
+copytruncate
+}
+```
+
+## Best Practices
+
+* Python scripts restart automatically if they crash.
+* Logs are separated per script in logs/.
+* Use tail -f to view real-time output.
+* tmux sessions are optional for interactive debugging.
+* Keep SD card space in mind; log rotation prevents filling it up.

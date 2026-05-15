@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/bash
 
 # Path to the virtual environment
 VENV_PATH="/home/pi/Projects/Wallbox/env"
@@ -12,16 +12,37 @@ mkdir -p "$LOG_DIR"
 run_script() {
     local script_name=$1
     local log_file="$LOG_DIR/${script_name%.py}.log"
+    local max_lines=10000
 
     echo "Starting $script_name..." >> "$log_file"
 
     while true; do
+
+        # Background log trimmer
+        (
+            while true; do
+                line_count=$(wc -l < "$log_file" 2>/dev/null || echo 0)
+
+                if [ "$line_count" -gt "$max_lines" ]; then
+                    tail -n "$max_lines" "$log_file" > "${log_file}.tmp"
+                    mv "${log_file}.tmp" "$log_file"
+                fi
+
+                sleep 10
+            done
+        ) &
+
+        trim_pid=$!
+
         # Activate virtualenv and run script
         source "$VENV_PATH/bin/activate"
-        python "$PROJECT_DIR/$script_name" >> "$log_file" 2>&1
+        python -u "$PROJECT_DIR/$script_name" >> "$log_file" 2>&1
 
-        # Log crash and restart
+        # Stop trimmer if python exits
+        kill $trim_pid 2>/dev/null
+
         echo "$(date '+%Y-%m-%d %H:%M:%S') - $script_name crashed, restarting in 5 seconds..." >> "$log_file"
+
         sleep 5
     done
 }
