@@ -25,7 +25,8 @@ run_script() {
 
                 if [ "$line_count" -gt "$max_lines" ]; then
                     tail -n "$max_lines" "$log_file" > "${log_file}.tmp"
-                    mv "${log_file}.tmp" "$log_file"
+                    cat "${log_file}.tmp" > "$log_file"
+                    rm "${log_file}.tmp"
                 fi
 
                 sleep 10

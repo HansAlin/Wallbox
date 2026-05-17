@@ -497,11 +497,11 @@ class Energy:
       self.cost_hour_list.reset()
 
       # Update thingspeak
-      if not self.test:
-        try:
-          self.ch.update({1: power['1'], 2: power['2'], 3: power['3'], 4: self.power_current_hour_mean, 5: self.third_highest_power})
-        except Exception as e:
-          print(f"ThingSpeak update failed: {e}", flush=True)
+      # if not self.test:
+      #   try:
+      #     self.ch.update({1: power['1'], 2: power['2'], 3: power['3'], 4: self.power_current_hour_mean, 5: self.third_highest_power})
+      #   except Exception as e:
+      #     print(f"ThingSpeak update failed: {e}", flush=True)
 
       self.energy_acc_hour = 0
       self.power_current_hour_list.reset()
@@ -538,11 +538,11 @@ class Energy:
     self.cost_hour_list.add([str(now), cost])
 
     # Update thingspeak
-    if not self.test:
-      try:
-        self.ch.update({1: power['1'], 2: power['2'], 3: power['3'], 4: self.power_current_hour_mean , 5: self.third_highest_power})
-      except Exception as e:
-        print(f"ThingSpeak update failed: {e}", flush=True)
+    # if not self.test:
+    #   try:
+    #     self.ch.update({1: power['1'], 2: power['2'], 3: power['3'], 4: self.power_current_hour_mean , 5: self.third_highest_power})
+    #   except Exception as e:
+    #     print(f"ThingSpeak update failed: {e}", flush=True)
         
     # Print status
     print(f"Power: {float(power_sum):>7.1f} W, Mean power: {self.power_current_hour_mean.item():>7.1f} W, Third highest power: {self.third_highest_power:>7.1f} W, Current cost {cost:>7.3} öre/h", end=" ")

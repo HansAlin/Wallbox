@@ -21,6 +21,8 @@ import numpy as np
 
 app = Flask(__name__)
 
+print("DEBUG VERSION LOADED - before_request active", flush=True)
+
 # Define default settings
 DEFAULT_SETTINGS = {
     'auto': 1,
@@ -53,7 +55,7 @@ state = {}
 def update_file(settings):
     """Save settings to file. Caller must hold settings_lock."""
     try:
-        print("Saving settings:", settings)
+        print("Saving settings:", settings, flush=True)
         with open(SETTINGS_FILE, 'w') as f:
             json.dump(settings, f, indent=2)
     except IOError as e:
@@ -87,6 +89,16 @@ def read_pkl_file():
             state = {}
             plot_image = None
 
+
+@app.before_request
+def log_request():
+    print(
+        "REQUEST:",
+        request.remote_addr,
+        request.method,
+        request.path,
+        flush=True
+    )
 
 def read_garo_values():
     global settings
@@ -123,7 +135,7 @@ def update_periodically():
                 except Exception as e:
                     print(f"Error generating plot: {e}")
             else:
-                print("No changes detected, plot not regenerated.")
+                print("No changes detected, plot not regenerated.", flush=True)
         
         time.sleep(UPDATE_INTERVAL)
 
@@ -206,7 +218,7 @@ def set_state():
 def toggle_mode(mode, action):
     ALLOWED_MODES = ['auto', 'fast_smart', 'manual']  # better naming
     print('In change state!')
-    print(f"Toggling {mode} {action}")  # <- debug
+    print(f"MODE CHANGE: {request.remote_addr} {mode} {action}", flush=True)  # <- debug
     if mode not in ALLOWED_MODES:
         return f"Invalid mode: {mode}", 400
 

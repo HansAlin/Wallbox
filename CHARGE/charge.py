@@ -13,10 +13,7 @@ import sys
 
 # Add the parent folder to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-# Test 1
-# Add the parent folder to sys.path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-# Test 1
+
 
 from matplotlib.dates import DateFormatter
 
@@ -110,7 +107,7 @@ def get_fast_smart_schedule(nordpool_data, now, hour_to_charged, charge_limit, s
 	if hour_to_charged > charge_limit:
 		# Calculate the stop time based on hour_to_charged
 		stop_charge = now + datetime.timedelta(hours=hour_to_charged)
-		charge_schedule = df_sub[df_sub['TimeStamp'] <= stop_charge]
+		df_sub = df_sub[df_sub['TimeStamp'] <= stop_charge]
 	else:
 
 		if set_time is not None:
@@ -234,9 +231,17 @@ def ifCharge(charge_schedule, now, time_delta=15):
         bool: True if within any scheduled time, else False
     """
     df = pd.DataFrame(charge_schedule)
+
+
+    if df.empty or 'TimeStamp' not in df.columns:
+        return False
     
     # Ensure 'TimeStamp' is datetime
-    df['TimeStamp'] = pd.to_datetime(df['TimeStamp'])
+    df['TimeStamp'] = pd.to_datetime(df['TimeStamp'], errors='coerce')
+    df = df.dropna(subset=['TimeStamp'])
+
+    if df.empty:
+        return False
     
     # Compute difference in timedelta
     delta = now - df['TimeStamp']
@@ -477,43 +482,47 @@ def get_button_state(do_print=True):
 
 	try:
 		response = requests.get(server_url + '/get_status', timeout=20)
-		if response.status_code ==  200:
-			data = response.json()
+		if response.status_code !=  200:
+			print("Failed to receive data", end=" ")
+			return None
 
-			new_data = {}
-			new_data['hours'] = data['hours']
-			new_data['set_time'] = data['set_time']
-			new_data['fas_value'] = data['fas_value']
-			new_data['kwh_per_week'] = data['kwh_per_week']
-			new_data['status'] = data['status']
-			new_data['max_power'] = data['max_power']
+		data = response.json()
 
-			# print("Web respons:", end=" ")
-			# print("Web respons:", end=" ")
-			if data == None:
-				print("None", end=" ")	
-				return None
-			elif data['auto'] == 1:
-				new_data['charge_type'] = 'auto'
-			elif data['manual'] == 1:
-				new_data['charge_type'] = 'manual'
-			elif data['fast_smart'] == 1:
-				new_data['charge_type'] = 'fast_smart'	
-			else:
-				new_data['charge_type'] = 'off'
-			if do_print:
-				print(f"Web status: {new_data['charge_type']}", end="")	
-				if new_data['charge_type'] == 'fast_smart':
-					print(f" {new_data['hours']} h in {new_data['set_time']}", end="")			
-				print(";", end=" ")		
-			return new_data
+		if data is None:
+			print("None", end=" ")
+			return None
+		
+		new_data = {}
+		new_data['hours'] = data.get('hours', 8)
+		new_data['set_time'] = data.get('set_time', 16)
+		new_data['fas_value'] = data.get('fas_value', 1)
+		new_data['kwh_per_week'] = data.get('kwh_per_week', 80)
+		new_data['status'] = data.get('status', 'Unknown')
+		new_data['max_power'] = data.get('max_power', 3000)
 
+		if data.get('auto') == 1:
+			new_data['charge_type'] = 'auto'
+		elif data.get('manual') == 1:
+			new_data['charge_type'] = 'manual'
+		elif data.get('fast_smart') == 1:
+			new_data['charge_type'] = 'fast_smart'
 		else:
-			print("Failed to recive data", end=" ")
-			return None
+			new_data['charge_type'] = 'off'
+
+		if do_print:
+			print(f"Web status: {new_data['charge_type']}", end="")	
+			if new_data['charge_type'] == 'fast_smart':
+				print(f" {new_data['hours']} h in {new_data['set_time']}", end="")			
+			print(";", end=" ")		
+		return new_data
+
+
 	except requests.exceptions.RequestException as e:
-			print("An error occured: ", e, end=" ")
-			return None
+		print("An error occurred:", e, end=" ")
+		return None
+	except ValueError as e:
+		print("Invalid JSON from server:", e, end=" ")
+		return None
 
 def set_button_state(state, current_server_state=None):
 	"""
@@ -526,48 +535,53 @@ def set_button_state(state, current_server_state=None):
 	Returns:
 	HTTP status code or None if failed
 	"""
+
 	mode_map = {
-	'auto': {'auto': 1, 'fast_smart': 0, 'manual': 0},
-	'fast_smart': {'auto': 0, 'fast_smart': 1, 'manual': 0},
-	'manual': {'auto': 0, 'fast_smart': 0, 'manual': 1},
-	'off': {'auto': 0, 'fast_smart': 0, 'manual': 0}
+		'auto': {'auto': 1, 'fast_smart': 0, 'manual': 0},
+		'fast_smart': {'auto': 0, 'fast_smart': 1, 'manual': 0},
+		'manual': {'auto': 0, 'fast_smart': 0, 'manual': 1},
+		'off': {'auto': 0, 'fast_smart': 0, 'manual': 0}
 	}
 
-	if 'charge_type' not in state:
-		new_state = {}
-	else:
-		# Only update the mode flags
-		new_state = mode_map.get(state['charge_type']).copy()
+	new_state = {}
 
-	# Include optional user-configurable fields
+	mode = state.get('charge_type')
+	if mode in mode_map:
+		new_state.update(mode_map[mode])
+
 	for key in ['hours', 'set_time', 'fas_value', 'kwh_per_week', 'status']:
 		if key in state:
 			new_state[key] = state[key]
 
-	# Auto-fetch current server state if not provided
+	if not new_state:
+		return 200
+
 	if current_server_state is None:
 		server_data = get_button_state(do_print=False)
-	if server_data:
-		current_server_state = {}
-	# Only compare the keys we are going to update
-	for key in new_state.keys():
-		current_server_state[key] = server_data.get(key)
+		if server_data:
+			current_server_state = {
+				key: server_data.get(key)
+				for key in new_state.keys()
+			}
 
-	# Only send update if something actually changed
 	if current_server_state and current_server_state == new_state:
-		pass
 		return 200
 
 	try:
-		response = requests.post(server_url + '/set_state', json=new_state).status_code
-		if response == 200:
-			pass
-		else:
+		response = requests.post(
+			server_url + '/set_state',
+			json=new_state,
+			timeout=10
+		)
+
+		if response.status_code != 200:
 			print("Could not update state on server!", end=" ")
-		return response
-	except Exception as e:
+
+		return response.status_code
+
+	except requests.exceptions.RequestException as e:
 		print(f"Not able to contact server! {e}", end=" ")
-	return None
+		return None
 
 
 
@@ -705,13 +719,13 @@ def save_log(data, now, connected, available, response):
 	max_lines = 1000
 	log_path = 'data/log.csv'
 	tmp_path = 'data/log_tmp.csv'
+	lock_path = 'data/log.csv.lock'
+
 	os.makedirs(os.path.dirname(log_path), exist_ok=True)
 
-	# Determine log type
 	log_type = "ERROR" if "error" in data else "NORMAL"
 
 	try:
-		# Build the log row safely
 		data_dict = {
 			"Time": now,
 			"Type": log_type,
@@ -738,24 +752,27 @@ def save_log(data, now, connected, available, response):
 			"Trace": data.get('trace', "")
 		}
 	except Exception as log_e:
-		print(f"⚠️ Failed to prepare log dict: {log_e}")
+		print(f"Failed to prepare log dict: {log_e}", flush=True)
 		return
 
 	data_df = pd.DataFrame([data_dict])
 
 	try:
-		if os.path.exists(log_path):
-			log = pd.read_csv(log_path)
-			log = pd.concat([log, data_df], ignore_index=True)
-			if len(log) > max_lines:
-				log = log.iloc[-max_lines:]
-		else:
-			log = data_df
-		# Atomic write
-		log.to_csv(tmp_path, index=False)
-		os.replace(tmp_path, log_path)
+		with portalocker.Lock(lock_path, timeout=5):
+			if os.path.exists(log_path):
+				log = pd.read_csv(log_path)
+				log = pd.concat([log, data_df], ignore_index=True)
+
+				if len(log) > max_lines:
+					log = log.iloc[-max_lines:]
+			else:
+				log = data_df
+
+			log.to_csv(tmp_path, index=False)
+			os.replace(tmp_path, log_path)
+
 	except Exception as file_e:
-		print(f"Failed to save log CSV: {file_e}")
+		print(f"Failed to save log CSV: {file_e}", flush=True)
 
 def if_download_nordpool_data(data, now, test=False):
 	""""

@@ -37,8 +37,10 @@ try:
 		file_content = f.read()
 		data = pickle.loads(file_content)
 
-except:
+except Exception as e:
+	print("Failed loading saved data:", e, flush=True)
 	data = cc.create_data_file()
+
 # Set timestamp to datetime
 data['last_down_load'] = pd.to_datetime(data['last_down_load'])
 
@@ -51,7 +53,8 @@ try:
 		diff = data['nordpool']['TimeStamp'].diff().mean()
 		schedule_time_delta = int(diff.total_seconds() / 60)
 
-except:
+except Exception as e:
+	print("Failed loading NordPool data:", e, flush=True)
 	data['nordpool'] = pd.DataFrame()
 	schedule_time_delta = 15
 
@@ -204,23 +207,20 @@ while True:
 
 
 		###################   WHEN CAR IS DISSCONNECTED   ###################
-		#										or charging finished by car
+		#										
 		#####################################################################
 		# Handle cases where car stops charging or is disconnected
-		if connected in ("NOT_CONNECTED", "CHARGING_FINISHED"):
+		if connected == "NOT_CONNECTED":
 				# Only reset if not already in auto or charge still True
 				if data.get('charge_type') != 'auto' or data.get('charge', True):
-						if connected == "NOT_CONNECTED":
-								print("Car disconnected. Resetting to default auto state.", end=" ")
-						else:  # CHARGING_FINISHED
-								print("Car finished charging. Resetting to default auto state.", end=" ")
+					print("Car disconnected. Resetting to default auto state.", end=" ")
 
-						charge = False
-						schedule = pd.DataFrame()
-						data['charge_type'] = 'auto'
-						_ = cc.set_button_state({'charge_type': 'auto'})
-						data['schedule'] = schedule
-						data['charge'] = charge
+					charge = False
+					schedule = pd.DataFrame()
+					data['charge_type'] = 'auto'
+					_ = cc.set_button_state({'charge_type': 'auto'})
+					data['schedule'] = schedule
+					data['charge'] = charge
 
 		# if connected is 'NOT_CONNECTED' and data.get('connected') != "NOT_CONNECTED":
 		# 	charge = False
