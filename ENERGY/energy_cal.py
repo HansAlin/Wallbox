@@ -28,6 +28,12 @@ class PowerList:
 
     def add(self, data):
         """Add new data point [timestamp_string, value] and filter by mode"""
+
+        timestamp = data[0]
+
+        # Remove any existing entry with same timestamp
+        self._data = [entry for entry in self._data if entry[0] != timestamp]
+
         self._data.append(data)
         self._filter_old()
 
@@ -55,7 +61,29 @@ class PowerList:
         self._data = filtered_data
 
     def update(self, data):
-        self._data = data    
+        """Replace internal data safely (deduplicated + validated)"""
+        
+        if not data:
+            self._data = []
+            return
+
+        seen = {}
+
+        for entry in data:
+            try:
+                t, v = entry
+
+                # Ensure correct types
+                t = str(t)
+                v = float(v)
+
+                seen[t] = v  # overwrite duplicates
+
+            except Exception as e:
+                print(f"Skipping bad entry in PowerList.update: {entry} ({e})", flush=True)
+
+        # Rebuild clean list
+        self._data = [[t, v] for t, v in seen.items()]
 
     def update_values(self, values, timestamps):
       """
@@ -90,15 +118,20 @@ class PowerList:
 
     @property
     def datetime(self):
-        # Turne the datetime strings into datetime objects
         if not self._data:
             return []
-        # Convert datetime strings to datetime objects
+
+        # Deduplicate WITHOUT modifying internal state
+        seen = {}
+        for t, v in self._data:
+            seen[t] = v
+
+        data = [[t, v] for t, v in seen.items()]
+
         try:
-            return [datetime.datetime.fromisoformat(entry[0]) for entry in self._data]
+            return [datetime.datetime.fromisoformat(entry[0]) for entry in data]
         except ValueError:
-            # If the format is not ISO8601, try parsing it
-            return [datetime.datetime.strptime(entry[0], '%Y-%m-%dT%H:%M:%S') for entry in self._data]
+            return [datetime.datetime.strptime(entry[0], '%Y-%m-%dT%H:%M:%S') for entry in data]
 
 
     @property
@@ -327,12 +360,31 @@ class Energy:
       spot_price = price * energy_values * 3600 / time_delta  # Scale to get price over one hour
       # Spot price is in öre/kWh
     else:
-      seconds_this_month = self.seconds_this_month(pd.to_datetime(now))
-      energy_values = np.array(energy_list.values) / 1000  # Convert from Wh to kWh
-      datetime_series = energy_list.datetime
-      power_values = np.array(power_list.values)
-      price = get_current_price(energy_list.datetime)['value'].values
-      spot_price = price * energy_values  * 3600 / time_delta
+        seconds_this_month = self.seconds_this_month(pd.to_datetime(now))
+
+        dt = pd.to_datetime(energy_list.datetime)
+
+        energy_values = np.array(energy_list.values) / 1000
+        power_values = np.array(power_list.values)
+
+        # Get price data
+        price_df = get_current_price(dt)
+
+        # Ensure datetime index
+        if not isinstance(price_df.index, pd.DatetimeIndex):
+            price_df.index = pd.to_datetime(price_df.index)
+
+        price_series = price_df['value']
+
+        # Align explicitly to our timestamps
+        price_aligned = price_series.reindex(dt)
+
+        # Handle missing values safely
+        price = price_aligned.fillna(method='ffill').fillna(method='bfill').values
+
+        datetime_series = dt
+
+        spot_price = price * energy_values * 3600 / time_delta
  
     
     additional_spot_price = energy_price['add_cost_per_kWh'] * energy_values * 3600 / time_delta  # Scale to get price over one hour

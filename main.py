@@ -234,11 +234,12 @@ while True:
 		###################   UPDATE CHARGE STATUS   ########################
 		#																	#
 		#####################################################################
-		# Considering power constraints
-		if data['charge']:
-			do_charge = cc.power_constraints(response, garo_status=connected)
-		else:
-			do_charge = data['charge']
+		# Considering power constraints from 1 juni 2026 not applicsble
+		do_charge = data['charge']
+		# if data['charge']:
+		# 	do_charge = cc.power_constraints(response, garo_status=connected)
+		# else:
+		# 	do_charge = data['charge']
 
 		charging, connected, available = cc.changeChargeStatusGaro(charging=data['charging'],
 																charge=do_charge,

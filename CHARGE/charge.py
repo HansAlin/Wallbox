@@ -279,7 +279,7 @@ def changeChargeStatusGaro(charging, charge, connected, available, test):
 	if test:
 		print("Test mode! Nothing will be changed.", end=" ")
 		return charging, connected, available
-
+	
 	try:
 		if connected == 'CHARGING_FINISHED' and available == "ALWAYS_ON":
 			turn_on_value = "0"
